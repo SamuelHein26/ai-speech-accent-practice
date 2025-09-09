@@ -1,0 +1,24 @@
+
+# Backend
+__pycache__/
+*.py[cod]
+venv/
+.env
+*.sqlite3
+db.sqlite3
+
+# Logs
+*.log
+*.pid
+*.bak
+*.swp
+*.tmp
+*.sock
+
+# IDE
+.vscode/
+.idea/
+
+# System
+.DS_Store
+Thumbs.db
