@@ -5,9 +5,9 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50 flex flex-col">
       {/* Navbar */}
       <header className="w-full flex justify-between items-center px-8 py-4 shadow bg-white">
-        <h1 className="text-2xl font-bold text-indigo-600">ComfTalk</h1>
+        <h1 className="text-2xl font-bold text-red-600">ComfTalk</h1>
         <nav className="flex items-center space-x-4">
-          <Link href="/login" className="focus:outline-none text-white bg-purple-700 hover:bg-purple-800 focus:ring-4 focus:ring-purple-300 font-medium rounded-lg text-sm px-5 py-2.5 mb-2 dark:bg-purple-600 dark:hover:bg-purple-700 dark:focus:ring-purple-900">
+          <Link href="/login" className="focus:outline-none text-white bg-red-600 hover:bg-red-700 font-medium rounded-lg text-sm px-5 py-2.5 mb-2">
             Login
           </Link>
         </nav>
@@ -28,7 +28,7 @@ export default function Home() {
       <section className="grid grid-cols-1 md:grid-cols-2 gap-8 px-8 pb-20">
         {/* Monologue Mode */}
         <div className="bg-white shadow rounded-2xl p-8 text-center hover:shadow-lg transition">
-          <h3 className="text-2xl font-semibold text-indigo-600 mb-4">
+          <h3 className="text-2xl font-semibold text-red-600 mb-4">
             Monologue Mode
           </h3>
           <p className="text-gray-600 mb-6">
@@ -37,7 +37,7 @@ export default function Home() {
           </p>
           <Link
             href="/monologue"
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
           >
             Start Monologue
           </Link>
@@ -45,7 +45,7 @@ export default function Home() {
 
         {/* Accent Training */}
         <div className="bg-white shadow rounded-2xl p-8 text-center hover:shadow-lg transition">
-          <h3 className="text-2xl font-semibold text-indigo-600 mb-4">
+          <h3 className="text-2xl font-semibold text-red-600 mb-4">
             Accent Training
           </h3>
           <p className="text-gray-600 mb-6">
@@ -54,7 +54,7 @@ export default function Home() {
           </p>
           <Link
             href="/accent"
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
           >
             Start Training
           </Link>
