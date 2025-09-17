@@ -3,72 +3,56 @@ import { useState, useRef } from "react";
 
 export default function MonologuePage() {
   const [isRecording, setIsRecording] = useState(false);
+  const [transcript, setTranscript] = useState<string>("");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [transcript, setTranscript] = useState<string | null>(null);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const audioChunks = useRef<Blob[]>([]);
 
-  // Start Recording
   const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); //Get permission for microphone
-      const mediaRecorder = new MediaRecorder(stream);
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+    mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunks.current = [];
+    wsRef.current = new WebSocket("ws://127.0.0.1:8000/ws/monologue");
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunks.current.push(event.data);
-        }
-      };
+    wsRef.current.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.partial) {
+        setTranscript((prev) => prev + " " + data.partial);
+      }
+    };
 
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunks.current, { type: "audio/wav" });
-        const url = URL.createObjectURL(audioBlob);
-        setAudioUrl(url);
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.current.push(event.data);
+        event.data.arrayBuffer().then((buffer) => {
+          wsRef.current?.send(buffer);
+        });
+      }
+    };
 
-        // Send to backend
-        uploadAudio(audioBlob);
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Microphone access denied:", err);
-    }
+    mediaRecorder.start(1000);
+    setIsRecording(true);
   };
 
-  // Stop Recording
   const stopRecording = () => {
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
+    mediaRecorderRef.current?.stop();
+    wsRef.current?.close();
+    setIsRecording(false);
 
-  // Upload to backend
-  const uploadAudio = async (audioBlob: Blob) => {
-    const formData = new FormData();
-    formData.append("file", audioBlob, "recording.wav");
-
-    const response = await fetch("http://127.0.0.1:8000/api/monologue/upload", {
-      method: "POST",
-      body: formData,
-    });
-
-    const data = await response.json();
-    console.log("Backend response:", data);
-
-    if (data.transcript) {
-      setTranscript(data.transcript);
-    }
+    // Save full audio for playback
+    const audioBlob = new Blob(audioChunks.current, { type: "audio/webm" });
+    const url = URL.createObjectURL(audioBlob);
+    setAudioUrl(url);
+    audioChunks.current = [];
   };
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6">
-      <h2 className="text-3xl font-bold mb-6">Monologue Mode</h2>
-    <div className="font-bold mb-6">Click button to start Recording</div>
+      <h2 className="text-3xl font-bold mb-6">Monologue Mode (Live)</h2>
+
       <div className="flex space-x-4">
         {!isRecording ? (
           <button
@@ -87,17 +71,17 @@ export default function MonologuePage() {
         )}
       </div>
 
-      {audioUrl && (
-        <div className="mt-6">
-          <p className="mb-2">Your Recording:</p>
-          <audio controls src={audioUrl}></audio>
+      {transcript && (
+        <div className="mt-6 max-w-xl bg-gray-100 p-4 rounded-lg shadow">
+          <h3 className="font-semibold mb-2">Live Transcript:</h3>
+          <p>{transcript}</p>
         </div>
       )}
 
-      {transcript && (
-        <div className="mt-6 max-w-xl bg-gray-100 p-4 rounded-lg shadow">
-          <h3 className="font-semibold mb-2">Transcript:</h3>
-          <p>{transcript}</p>
+      {audioUrl && (
+        <div className="mt-6">
+          <h3 className="font-semibold mb-2">Playback:</h3>
+          <audio controls src={audioUrl}></audio>
         </div>
       )}
     </main>
