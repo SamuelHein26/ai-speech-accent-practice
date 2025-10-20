@@ -1,23 +1,40 @@
 @import "tailwindcss";
 
-/* Optional: override dark variant to be triggered by a class on <html> */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* You can also define theme variables, custom colours etc. */
-@theme {
-  --color-bg: white;
-  --color-text: black;
-  --color-bg-dark: #1a1a1a;
-  --color-text-dark: #f0f0f0;
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
 }
 
-/* set up styles using the variables */
+@layer utilities {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+      display: none;
+  }
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+      -ms-overflow-style: none; /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
 body {
-  background-color: var(--color-bg);
-  color: var(--color-text);
-}
-
-:root.dark body {
-  background-color: var(--color-bg-dark);
-  color: var(--color-text-dark);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
 }
