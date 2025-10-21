@@ -1,21 +1,28 @@
 import os
 import subprocess
+import asyncio
 from pathlib import Path
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
 from dotenv import load_dotenv
-from routers import users, sessions
-from database import Base, engine
+from database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
 from services.session_manager import SessionManager
 from services.transcription_service import TranscriptionService
 from services.openai_service import OpenAIService
+from fastapi_utils.tasks import repeat_every
+from routers import users, sessions, auth_router
 
 # Load environment variables
 load_dotenv()
 
-# Initialize FastAPI Application 
 app = FastAPI(title="Monologue AI Backend")
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+# === CORS Config ===
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -24,7 +31,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# === Dependency Injection Setup ===
+
+app.include_router(users.router)
+app.include_router(sessions.router)
+app.include_router(auth_router.router)
+
+
+# === Dependency Setup ===
 WORKDIR = Path("./live_sessions")
 WORKDIR.mkdir(parents=True, exist_ok=True)
 
@@ -33,76 +46,104 @@ transcriber = TranscriptionService(os.getenv("ASSEMBLYAI_API_KEY"))
 openai_service = OpenAIService(os.getenv("OPENAI_API_KEY"))
 
 @app.on_event("startup")
-async def startup():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+@repeat_every(seconds=3600)
+async def scheduled_cleanup() -> None:
+    """Periodic cleanup for expired guest sessions."""
+    async with SessionLocal() as db:
+        await session_manager.cleanup_expired_sessions(db)
 
-app.include_router(users.router)
-app.include_router(sessions.router)
-
-@app.get("/ping")
-def ping():
-    """Health check endpoint."""
-    return {"message": "pong"}
-
-
+# === Start Session ===
 @app.post("/session/start")
-def start_session(user_id: str):
-    """Create a new user session."""
-    session_id = session_manager.create_session(user_id)
-    return {"session_id": session_id}
+async def start_session(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+):
+
+    user_id = None
+    is_guest = False
+
+    # Try to decode JWT (optional)
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        if email:
+            stmt = select(User).where(User.email == email)
+            result = await db.execute(stmt)
+            user = result.scalar_one_or_none()
+            if user:
+                user_id = user.id
+    except JWTError:
+        is_guest = True
+    except Exception:
+        is_guest = True
+
+    # Fallback to guest if user not found or token invalid
+    if not user_id:
+        is_guest = True
+
+    session = await session_manager.create_session(db, user_id=user_id, is_guest=is_guest)
+    return {"session_id": session["session_id"], "is_guest": is_guest}
 
 
+# === Upload Audio Chunk ===
 @app.post("/session/{session_id}/chunk")
 async def upload_chunk(session_id: str, file: UploadFile = File(...)):
     """Append chunk to session’s audio file."""
     path = session_manager.get_audio_path(session_id)
-    with open(path, "ab") as f:
-        f.write(await file.read())
+    async with asyncio.Lock():
+        with open(path, "ab") as f:
+            f.write(await file.read())
     return {"ready": True}
 
 
+# === Finalize Session ===
 @app.post("/session/{session_id}/finalize")
-def finalize_session(session_id: str):
-    """Convert WebM → WAV, transcribe, and return final transcript."""
+async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
+    """Convert WebM → WAV, transcribe, and finalize session."""
     webm_path = session_manager.get_audio_path(session_id)
     wav_path = str(webm_path).replace(".webm", ".wav")
 
-    subprocess.run(
-        ["ffmpeg", "-y", "-loglevel", "error", "-i", str(webm_path), "-ar", "16000", "-ac", "1", wav_path],
-        capture_output=True,
-        text=True,
-    )
+    if not os.path.exists(webm_path):
+        raise HTTPException(status_code=404, detail=f"Audio file not found at {webm_path}")
 
+    # Step 1: Convert audio using ffmpeg asynchronously
+    process = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-y", "-loglevel", "error", "-i", str(webm_path),
+        "-ar", "16000", "-ac", "1", wav_path,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        raise HTTPException(status_code=500, detail=f"FFmpeg conversion failed: {stderr.decode()}")
+
+    # Step 2: Transcribe & cleanup
     try:
         transcript = transcriber.transcribe_audio(wav_path)
-        session_manager.finalize_session(session_id)
+        await session_manager.finalize_session(db, session_id)
         return {"final": transcript}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Transcription error: {e}")
 
 
+# === Topic Generation ===
 @app.post("/topics/generate")
-def generate_topics(transcript: str):
-    """Generate topic suggestions mid-monologue."""
+async def generate_topics(transcript: str):
+    """Generate topic suggestions."""
     try:
-        topics = openai_service.generate_topics(transcript)
+        topics = await asyncio.to_thread(openai_service.generate_topics, transcript)
         return {"topics": topics}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"OpenAI error: {e}")
 
 
+# === Feedback Analysis ===
 @app.post("/feedback/analyze")
-def analyze_feedback(transcript: str):
-    """Generate speech improvement feedback post-recording."""
+async def analyze_feedback(transcript: str):
+    """Analyze speech feedback."""
     try:
-        feedback = openai_service.analyze_speech(transcript)
+        feedback = await asyncio.to_thread(openai_service.analyze_speech, transcript)
         return {"feedback": feedback}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Feedback generation failed: {e}")
-
-
-@app.on_event("startup")
-def warmup_model():
-    """Optional: Pre-warm the AssemblyAI model (no-op for API mode)."""
-    print("✅ Backend initialized: services loaded and ready.")

@@ -12,7 +12,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  if (!isOpen) return null; // Don’t render when closed
+  if (!isOpen) return null;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,17 +30,12 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
         body: formData.toString(),
       });
 
-      if (!res.ok) {
-        throw new Error("Invalid credentials");
-      }
+      if (!res.ok) throw new Error("Invalid credentials");
 
       const data = await res.json();
-      console.log("JWT token:", data.access_token);
-
-      // ✅ Save token (for now in localStorage, later in httpOnly cookie)
       localStorage.setItem("token", data.access_token);
-
-      onClose(); // Close modal on success
+      window.dispatchEvent(new Event("authChange"));
+      onClose();
     } catch (err) {
       setError("Login failed. Please try again.");
     } finally {
@@ -49,43 +44,69 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-10 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-96">
-        <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-100">
-          Login
+    <div className="fixed inset-0 flex items-center justify-center bg-transparent bg-opacity-40 backdrop-blur-sm z-50 animate-fadeIn">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 w-[95%] max-w-md transition-all transform hover:scale-[1.01]">
+        {/* Title */}
+        <h2 className="text-3xl font-bold text-center text-red-600 dark:text-red-500 mb-6">
+          Welcome Back
         </h2>
-        <form onSubmit={handleLogin} className="flex flex-col gap-4">
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-          />
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+        <p className="text-center text-gray-600 dark:text-gray-400 mb-8 text-sm">
+          Sign in to continue your AI Accent Training journey
+        </p>
+
+        {/* Form */}
+        <form onSubmit={handleLogin} className="flex flex-col gap-5">
+          <div>
+            <label className="block text-gray-700 dark:text-gray-300 mb-2 text-sm font-medium">
+              Email
+            </label>
+            <input
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-gray-500 dark:text-gray-100 focus:ring-2 focus:ring-red-500 outline-none transition"
+            />
+          </div>
+
+          <div>
+            <label className="block text-gray-700 dark:text-gray-300 mb-2 text-sm font-medium">
+              Password
+            </label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-gray-500 dark:text-gray-100 focus:ring-2 focus:ring-red-500 outline-none transition"
+            />
+          </div>
+
+          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+            className="w-full py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50 shadow-md transition-transform transform hover:scale-[1.02] cursor-pointer"
           >
             {loading ? "Logging in..." : "Login"}
           </button>
         </form>
-        <button
-          onClick={onClose}
-          className="mt-4 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100"
-        >
-          Cancel
-        </button>
+
+        {/* Footer Actions */}
+        <div className="mt-6 flex justify-between items-center text-sm">
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button className="text-red-600 dark:text-red-400 hover:underline cursor-pointer">
+            Register
+          </button>
+        </div>
       </div>
     </div>
   );

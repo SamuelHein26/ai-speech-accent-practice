@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from models import User
 from schemas import UserCreate, UserLogin, Token
-from utils.auth import hash_password, verify_password, create_access_token
+from services.auth import hash_password, verify_password, create_access_token
 from database import get_db
 
 router = APIRouter(prefix="/users", tags=["Users"])

@@ -7,16 +7,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Database URL for async engine
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://ai_user:Password123@localhost:5432/ai_speech_training"
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL is not set in .env file")
 
 # Create asynchronous SQLAlchemy engine
 engine = create_async_engine(DATABASE_URL, echo=True, future=True)
 
 # Define async session factory
-AsyncSessionLocal = sessionmaker(
+SessionLocal = sessionmaker(
     bind=engine, class_=AsyncSession, expire_on_commit=False
 )
 
@@ -25,5 +25,5 @@ Base = declarative_base()
 
 # Dependency injection helper for FastAPI endpoints
 async def get_db():
-    async with AsyncSessionLocal() as session:
+    async with SessionLocal() as session:
         yield session

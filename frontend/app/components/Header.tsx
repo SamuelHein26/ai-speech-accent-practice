@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import LoginModal from "../components/loginModal";
 import ThemeToggle from "./ThemeToggle";
@@ -8,16 +8,38 @@ import { useRouter, usePathname } from "next/navigation";
 export default function Header() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const router = useRouter();
-  const pathname = usePathname(); // get current path
+  const pathname = usePathname();
+  const profileRef = useRef<HTMLDivElement | null>(null);
 
-  // Helper: returns active link styles
-// Helper: returns active link styles
-const getActiveClass = (path: string): string =>
-  pathname === path
-    ? "text-red-600 dark:text-red-400 border-b-2 border-red-600 dark:border-red-400"
-    : "text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400";
+  // --- Check for token on mount
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    setIsLoggedIn(!!token);
+  }, []);
 
+  // --- Click outside closes profile dropdown
+  useEffect(() => {
+    const checkToken = () => setIsLoggedIn(!!localStorage.getItem("token"));
+    checkToken();
+
+    window.addEventListener("authChange", checkToken);
+    return () => window.removeEventListener("authChange", checkToken);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    window.dispatchEvent(new Event("authChange"));
+    setIsProfileOpen(false);
+    router.push("/");
+  };
+
+  const getActiveClass = (path: string): string =>
+    pathname === path
+      ? "text-red-600 dark:text-red-400 border-b-2 border-red-600 dark:border-red-400"
+      : "text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400";
 
   return (
     <header className="w-full flex justify-between items-center px-8 py-4 shadow bg-white dark:bg-gray-900 transition-colors relative">
@@ -26,9 +48,9 @@ const getActiveClass = (path: string): string =>
         <Link href="/">AI Accent Training</Link>
       </h1>
 
-      {/* Center Nav (Hidden on Mobile) */}
+      {/* Center Nav */}
       <nav className="hidden md:flex items-center space-x-6">
-        {/* Monologue Button */}
+        {/* Monologue */}
         <button
           onClick={() => router.push("/monologue")}
           className={`p-2 rounded-full hover:bg-red-50 dark:hover:bg-gray-800 transition cursor-pointer ${
@@ -56,7 +78,7 @@ const getActiveClass = (path: string): string =>
           </svg>
         </button>
 
-        {/* Accent Button */}
+        {/* Accent */}
         <button
           onClick={() => router.push("/accent")}
           className={`p-2 rounded-full hover:bg-red-50 dark:hover:bg-gray-800 transition cursor-pointer ${
@@ -83,38 +105,57 @@ const getActiveClass = (path: string): string =>
           </svg>
         </button>
 
-        {/* About */}
-        <Link
-          href="/about"
-          className={`${getActiveClass(
-            "/about"
-          )} font-medium transition pb-1`}
-        >
+        {/* About & Help */}
+        <Link href="/about" className={`${getActiveClass("/about")} font-medium transition pb-1`}>
           About
         </Link>
-
-        {/* Help */}
-        <Link
-          href="/help"
-          className={`${getActiveClass(
-            "/help"
-          )} font-medium transition pb-1`}
-        >
+        <Link href="/help" className={`${getActiveClass("/help")} font-medium transition pb-1`}>
           Help
         </Link>
       </nav>
 
       {/* Right Section */}
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-4 relative" ref={profileRef}>
         <ThemeToggle />
-        <button
-          onClick={() => setIsLoginOpen(true)}
-          className="focus:outline-none text-white bg-red-600 hover:bg-red-700 font-medium rounded-lg text-sm px-5 py-2.5 cursor-pointer transition"
-        >
-          Login
-        </button>
 
-        {/* Hamburger Button */}
+        {isLoggedIn ? (
+          <div className="relative">
+            {/* Profile Button */}
+            <button
+              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              className="focus:outline-none bg-red-600 hover:bg-red-700 text-white font-medium rounded-full px-4 py-2.5 text-sm transition cursor-pointer"
+            >
+              Profile
+            </button>
+
+            {/* Dropdown */}
+            {isProfileOpen && (
+              <div className="absolute right-0 mt-2 w-36 bg-white dark:bg-gray-800 shadow-lg rounded-lg z-50">
+                <button
+                  onClick={() => router.push("/profile")}
+                  className="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-red-50 dark:hover:bg-gray-700 transition"
+                >
+                  View Profile
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="block w-full text-left px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 transition"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsLoginOpen(true)}
+            className="focus:outline-none text-white bg-red-600 hover:bg-red-700 font-medium rounded-lg text-sm px-5 py-2.5 cursor-pointer transition"
+          >
+            Login
+          </button>
+        )}
+
+        {/* Hamburger */}
         <button
           className="md:hidden p-2 rounded-lg hover:bg-red-50 dark:hover:bg-gray-800 transition"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -163,6 +204,7 @@ const getActiveClass = (path: string): string =>
         </div>
       )}
 
+      {/* Modal */}
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
     </header>
   );
