@@ -1,6 +1,9 @@
 # services/transcription_service.py
 import requests
 import time
+import os
+
+ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
 
 class TranscriptionService:
     def __init__(self, api_key: str):

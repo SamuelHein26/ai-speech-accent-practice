@@ -13,7 +13,7 @@ from services.session_manager import SessionManager
 from services.transcription_service import TranscriptionService
 from services.openai_service import OpenAIService
 from fastapi_utils.tasks import repeat_every
-from routers import users, sessions, auth_router
+from routers import users, sessions, auth_router, streaming
 
 # Load environment variables
 load_dotenv()
@@ -35,7 +35,7 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(sessions.router)
 app.include_router(auth_router.router)
-
+app.include_router(streaming.router)
 
 # === Dependency Setup ===
 WORKDIR = Path("./live_sessions")
