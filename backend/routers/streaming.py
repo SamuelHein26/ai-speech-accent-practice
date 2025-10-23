@@ -1,27 +1,21 @@
 # routers/streaming.py
-# Purpose: Expose /ws/stream endpoint that browsers connect to.
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from services.streaming_transcription_service import StreamingTranscriptionService
 
 router = APIRouter(tags=["Realtime"])
-
-streaming_service = StreamingTranscriptionService()
+_service = StreamingTranscriptionService()
 
 @router.websocket("/ws/stream")
 async def ws_stream(websocket: WebSocket):
-    # Accept the browser WS connection
-    await websocket.accept(subprotocol="json")
+    await websocket.accept()
     try:
-        # Bridge to AAI RT service until either side closes.
-        await streaming_service.proxy(websocket)
+        print("[WS] Client connected")
+        await _service.proxy(websocket)
     except WebSocketDisconnect:
-        # Client disconnected; graceful cleanup handled by service
-        pass
+        print("[WS] Client disconnected")
     except Exception as e:
-        # Best-effort error message back to client, then close
+        print(f"[WS] Error: {e}")
         try:
-            await websocket.send_text(f'{{"error":"{str(e)}"}}')
-        except Exception:
-            pass
+            await websocket.send_text(f'{{"type":"Error","reason":"{str(e)}"}}')
         finally:
             await websocket.close()

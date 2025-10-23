@@ -45,7 +45,7 @@ export default function Header() {
     <header className="w-full flex justify-between items-center px-8 py-4 shadow bg-white dark:bg-gray-900 transition-colors relative">
       {/* Branding */}
       <h1 className="font-bold text-xl text-red-600 dark:text-red-500">
-        <Link href="/">AI Accent Training</Link>
+        <Link href="/">ComfTalk</Link>
       </h1>
 
       {/* Center Nav */}

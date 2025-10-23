@@ -58,5 +58,4 @@ class TranscriptionService:
             if status == "error":
                 raise Exception(f"Transcription failed: {status_data['error']}")
 
-            print(f"Status: {status} (waiting 3s...)")
-            time.sleep(3)
+            print(f"Status: {status} (waiting...)")

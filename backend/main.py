@@ -2,7 +2,7 @@ import os
 import subprocess
 import asyncio
 from pathlib import Path
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -11,6 +11,7 @@ from database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from services.session_manager import SessionManager
 from services.transcription_service import TranscriptionService
+from services.streaming_transcription_service import StreamingTranscriptionService
 from services.openai_service import OpenAIService
 from fastapi_utils.tasks import repeat_every
 from routers import users, sessions, auth_router, streaming
@@ -31,7 +32,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 app.include_router(users.router)
 app.include_router(sessions.router)
 app.include_router(auth_router.router)
@@ -44,6 +44,7 @@ WORKDIR.mkdir(parents=True, exist_ok=True)
 session_manager = SessionManager(WORKDIR)
 transcriber = TranscriptionService(os.getenv("ASSEMBLYAI_API_KEY"))
 openai_service = OpenAIService(os.getenv("OPENAI_API_KEY"))
+stream_service = StreamingTranscriptionService()
 
 @app.on_event("startup")
 @repeat_every(seconds=3600)
@@ -51,6 +52,11 @@ async def scheduled_cleanup() -> None:
     """Periodic cleanup for expired guest sessions."""
     async with SessionLocal() as db:
         await session_manager.cleanup_expired_sessions(db)
+        
+@app.websocket("/ws/stream")
+async def websocket_stream(ws: WebSocket):
+    await ws.accept()
+    await stream_service.proxy(ws)
 
 # === Start Session ===
 @app.post("/session/start")
@@ -83,7 +89,6 @@ async def start_session(
 
     session = await session_manager.create_session(db, user_id=user_id, is_guest=is_guest)
     return {"session_id": session["session_id"], "is_guest": is_guest}
-
 
 # === Upload Audio Chunk ===
 @app.post("/session/{session_id}/chunk")
