@@ -1,11 +1,3 @@
-// app/monologue/page.tsx
-// Purpose: Monologue page with RT streaming → live transcript + finalization.
-// Notes:
-// - Uses env: NEXT_PUBLIC_API_BASE_URL (e.g., https://your-api.onrender.com)
-// - Auto-selects ws:// or wss:// based on window.location.protocol
-// - Sends PCM16 binary frames; expects backend /ws/stream proxy to accept binary
-// - No layout/visual changes versus your current version.
-
 "use client";
 
 import Header from "../components/Header";
@@ -15,6 +7,24 @@ import LiveWaveform from "../components/LiveWaveform";
 // ---- API response types (strict typing; no any) ----
 type StartSessionResponse = { session_id: string; is_guest: boolean };
 type FinalizeResponse = { final: string; audio_url?: string };
+
+function createAudioContext(desiredSampleRate = 48000): AudioContext {
+  const w = window as unknown as {
+    AudioContext?: typeof AudioContext;
+    webkitAudioContext?: typeof AudioContext;
+  };
+
+  const Ctor = w.AudioContext ?? w.webkitAudioContext;
+  if (!Ctor) throw new Error("Web Audio API not supported");
+
+  // Try with options first
+  try {
+    return new Ctor({ sampleRate: desiredSampleRate } as AudioContextOptions);
+  } catch {
+    // Fall back to default constructor (some browsers reject options)
+    return new Ctor();
+  }
+}
 
 // ---- Helpers: build base API + WS URLs safely ----
 const API_BASE =
@@ -180,31 +190,30 @@ export default function MonologuePage() {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        // WebAudio graph
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({
-          sampleRate: 48000,
-        });
+        const audioCtx = createAudioContext(48000);
         audioCtxRef.current = audioCtx;
 
         const source = audioCtx.createMediaStreamSource(stream);
         sourceRef.current = source;
 
-        // ScriptProcessor (deprecated but simple); consider AudioWorklet when you want ultra-low-lat
         const processor = audioCtx.createScriptProcessor(4096, 1, 1);
         processorRef.current = processor;
+
+        // 🔇 Silent sink so onaudioprocess runs without echo
+        const silentGain = audioCtx.createGain();
+        silentGain.gain.value = 0;
 
         processor.onaudioprocess = (e) => {
           const input = e.inputBuffer.getChannelData(0);
           const int16 = downsampleTo16k(input, audioCtx.sampleRate);
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(int16.buffer); // raw PCM16 as ArrayBuffer
-          }
+          if (ws.readyState === WebSocket.OPEN) ws.send(int16.buffer);
         };
 
         source.connect(processor);
-        // Avoid echo by NOT connecting to destination
-        // processor.connect(audioCtx.destination); // <- leave disconnected
+        processor.connect(silentGain);
+        silentGain.connect(audioCtx.destination);
       };
+
 
       ws.onmessage = (event: MessageEvent<string | ArrayBufferLike | Blob>) => {
         if (typeof event.data !== "string") return;
