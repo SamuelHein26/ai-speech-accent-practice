@@ -1,8 +1,40 @@
+// app/monologue/page.tsx
+// Purpose: Monologue page with RT streaming → live transcript + finalization.
+// Notes:
+// - Uses env: NEXT_PUBLIC_API_BASE_URL (e.g., https://your-api.onrender.com)
+// - Auto-selects ws:// or wss:// based on window.location.protocol
+// - Sends PCM16 binary frames; expects backend /ws/stream proxy to accept binary
+// - No layout/visual changes versus your current version.
+
 "use client";
 
 import Header from "../components/Header";
 import { useEffect, useRef, useState } from "react";
 import LiveWaveform from "../components/LiveWaveform";
+
+// ---- API response types (strict typing; no any) ----
+type StartSessionResponse = { session_id: string; is_guest: boolean };
+type FinalizeResponse = { final: string; audio_url?: string };
+
+// ---- Helpers: build base API + WS URLs safely ----
+const API_BASE =
+  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_BASE_URL) || "http://127.0.0.1:8000";
+
+const wsURL = (): string => {
+  // If API_BASE is absolute (https://api...), derive matching ws scheme
+  try {
+    const u = new URL(API_BASE);
+    u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
+    u.pathname = "/ws/stream";
+    u.search = "";
+    u.hash = "";
+    return u.toString();
+  } catch {
+    // Fallback from current origin
+    const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+    return `${isHttps ? "wss" : "ws"}://${window.location.host}/ws/stream`;
+  }
+};
 
 export default function MonologuePage() {
   /** === UI/State === */
@@ -12,20 +44,18 @@ export default function MonologuePage() {
   const [finalTranscript, setFinalTranscript] = useState("");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [liveTranscript, setLiveTranscript] = useState("");
 
-  // Finalized text and replaceable partial
+  // Live render text: committed final turns + replaceable partial
   const [liveCommitted, setLiveCommitted] = useState("");
   const [livePartial, setLivePartial] = useState("");
 
-  const lastFinalRef = useRef<string>("");
+  // Display text assembled from committed + partial
+  const displayText = [liveCommitted, livePartial].filter(Boolean).join(" ");
 
   /** === Session & Media Refs === */
   const sessionRef = useRef<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
-
-  const displayText = [liveCommitted, livePartial].filter(Boolean).join(" ");
 
   /** === Streaming Refs (WS + WebAudio) === */
   const wsRef = useRef<WebSocket | null>(null);
@@ -33,11 +63,37 @@ export default function MonologuePage() {
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
 
+  /** === Dedup guards === */
+  const lastFinalRef = useRef<string>("");   // last finalized string
+  const lastPartialRef = useRef<string>(""); // last partial to avoid UI churn
+
   /** === Mount bootstrap === */
   useEffect(() => {
     setMounted(true);
     const existing = sessionStorage.getItem("guest_session_id");
     if (existing) sessionRef.current = existing;
+
+    // Cleanup on unmount in case user navigates away mid-stream
+    return () => {
+      try {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ type: "Terminate" }));
+          wsRef.current.close();
+        }
+      } catch {}
+      if (processorRef.current) {
+        processorRef.current.disconnect();
+        processorRef.current.onaudioprocess = null;
+      }
+      if (sourceRef.current) sourceRef.current.disconnect();
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+      }
+      const mr = mediaRecorderRef.current;
+      if (mr && mr.state !== "inactive") {
+        mr.stop();
+      }
+    };
   }, []);
 
   /** === PCM Conversion Utilities === */
@@ -45,13 +101,15 @@ export default function MonologuePage() {
   const floatTo16BitPCM = (input: Float32Array): Int16Array => {
     const out = new Int16Array(input.length);
     for (let i = 0; i < input.length; i++) {
-      const s = Math.max(-1, Math.min(1, input[i]));
+      let s = input[i];
+      if (s > 1) s = 1;
+      if (s < -1) s = -1;
       out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
     }
     return out;
   };
 
-  // Downsample Float32 @ inputRate → Int16 @ targetRate (mono)
+  // Downsample Float32 @ inputRate → Int16 @ 16kHz (mono)
   const downsampleTo16k = (buffer: Float32Array, inputRate: number): Int16Array => {
     const targetRate = 16000;
     if (inputRate === targetRate) return floatTo16BitPCM(buffer);
@@ -62,7 +120,8 @@ export default function MonologuePage() {
     let offsetBuffer = 0;
     while (offsetResult < newLen) {
       const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
-      let accum = 0, count = 0;
+      let accum = 0;
+      let count = 0;
       for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
         accum += buffer[i];
         count++;
@@ -75,131 +134,141 @@ export default function MonologuePage() {
   };
 
   /** === Start Recording (Streaming) === */
-  const startRecording = async () => {
+  const startRecording = async (): Promise<void> => {
     setError(null);
     setFinalTranscript("");
-    setLiveTranscript("");          // if you still keep this, not required anymore
-    setLiveCommitted("");           // reset committed
-    setLivePartial("");             // reset partial
-    lastFinalRef.current = "";      // reset dedup guard
+    setLiveCommitted("");
+    setLivePartial("");
+    lastFinalRef.current = "";
+    lastPartialRef.current = "";
     setAudioUrl(null);
 
     try {
-      // Start/ensure a DB session (keeps your prior flow unchanged)
-      const token = localStorage.getItem("token");
-      const res = await fetch("http://127.0.0.1:8000/session/start", {
+      // Create/ensure a DB session for this recording
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const startRes = await fetch(`${API_BASE}/session/start`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!res.ok) {
-        const err = await res.json();
+      if (!startRes.ok) {
+        const err = (await startRes.json()) as { detail?: string };
         throw new Error(err.detail || "Failed to start session");
       }
-      const data = await res.json();
-      sessionRef.current = data.session_id;
-      sessionStorage.setItem("guest_session_id", data.session_id);
+      const startData: StartSessionResponse = await startRes.json();
+      sessionRef.current = startData.session_id;
+      sessionStorage.setItem("guest_session_id", startData.session_id);
 
       // Acquire mic
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, noiseSuppression: true, echoCancellation: true },
+      });
 
-      // Keep MediaRecorder for final blob persistence (unchanged flow)
+      // MediaRecorder for final blob persistence (keeps your finalize flow)
       const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
       mediaRecorderRef.current = mr;
       audioChunks.current = [];
-      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.current.push(e.data); };
+      mr.ondataavailable = (evt: BlobEvent) => {
+        if (evt.data.size > 0) audioChunks.current.push(evt.data);
+      };
       mr.start();
 
       // Establish WS to FastAPI streaming proxy
-      const ws = new WebSocket("ws://127.0.0.1:8000/ws/stream");
+      const url = wsURL();
+      const ws = new WebSocket(url);
+      // If your backend expects binary frames (AAI v3), default is fine; just send ArrayBuffer
+      ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
       ws.onopen = () => {
-        // Initialize WebAudio processing on connect
-        const audioCtx = new AudioContext({ sampleRate: 48000 }); // typical default, we downsample to 16k
+        // WebAudio graph
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({
+          sampleRate: 48000,
+        });
         audioCtxRef.current = audioCtx;
 
         const source = audioCtx.createMediaStreamSource(stream);
         sourceRef.current = source;
 
-        // ScriptProcessor for simplicity; can upgrade to AudioWorklet for low-lat
+        // ScriptProcessor (deprecated but simple); consider AudioWorklet when you want ultra-low-lat
         const processor = audioCtx.createScriptProcessor(4096, 1, 1);
         processorRef.current = processor;
 
         processor.onaudioprocess = (e) => {
           const input = e.inputBuffer.getChannelData(0);
           const int16 = downsampleTo16k(input, audioCtx.sampleRate);
-          // Send as binary ArrayBuffer (AAI expects raw PCM16 frames)
-          if (ws.readyState === WebSocket.OPEN) ws.send(int16.buffer);
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(int16.buffer); // raw PCM16 as ArrayBuffer
+          }
         };
 
         source.connect(processor);
-        processor.connect(audioCtx.destination);
+        // Avoid echo by NOT connecting to destination
+        // processor.connect(audioCtx.destination); // <- leave disconnected
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = (event: MessageEvent<string | ArrayBufferLike | Blob>) => {
+        if (typeof event.data !== "string") return;
         try {
-          const msg = JSON.parse(event.data);
-          const t = msg?.type;
+          const msg = JSON.parse(event.data as string) as Record<string, unknown>;
+          const t = msg["type"];
 
           if (t === "Begin") {
-            // Reset per-session if you want
-            // setLiveCommitted(""); setLivePartial(""); lastFinalRef.current = "";
             return;
           }
 
           if (t === "Turn") {
-            const text: string = (msg?.transcript || "").trim();
-            const isFormattedFinal: boolean =
-              Boolean(msg?.turn_is_formatted) || Boolean(msg?.is_final);
+            const text = String(msg["transcript"] || "").trim();
+            const isFinal = Boolean(msg["turn_is_formatted"] || msg["is_final"]);
 
             if (!text) return;
 
-            if (isFormattedFinal) {
-              // Only append once per final value
+            if (isFinal) {
               if (text !== lastFinalRef.current) {
                 setLiveCommitted((prev) => (prev ? prev + " " : "") + text);
                 lastFinalRef.current = text;
               }
-              // Clear partial since this turn is finalized
               setLivePartial("");
+              lastPartialRef.current = "";
             } else {
-              // Partial updates should REPLACE, not append
-              setLivePartial(text);
+              // Replace partial only if it changed
+              if (text !== lastPartialRef.current) {
+                setLivePartial(text);
+                lastPartialRef.current = text;
+              }
             }
           }
-
-          // Optional: handle "Termination" if you want to finalize UI
-          // if (t === "Termination") { ... }
-
         } catch {
-          // Non-JSON or control frames can be ignored
+          // Non-JSON frames or heartbeat; ignore
         }
       };
 
-
-      ws.onerror = (e) => setError("Streaming connection error");
-      ws.onclose = () => { /* noop; cleaned up in stop */ };
+      ws.onerror = () => setError("Streaming connection error");
+      ws.onclose = () => { /* no-op; cleaned in stop */ };
 
       setIsRecording(true);
-    } catch (err: any) {
-      setError(err.message || "Failed to start streaming");
-      await stopRecording(); // best-effort cleanup
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to start streaming";
+      setError(msg);
+      // Best-effort cleanup
+      await stopRecording();
     }
   };
 
   /** === Stop Recording (Close streaming + finalize blob) === */
-  const stopRecording = async () => {
+  const stopRecording = async (): Promise<void> => {
     setIsRecording(false);
     setIsProcessing(true);
 
     try {
-      // Graceful terminate AAI session
+      // Terminate WS session
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: "Terminate" }));
+        try {
+          wsRef.current.send(JSON.stringify({ type: "Terminate" }));
+        } catch {}
         wsRef.current.close();
       }
 
-      // Tear down WebAudio graph
+      // Tear down WebAudio
       if (processorRef.current) {
         processorRef.current.disconnect();
         processorRef.current.onaudioprocess = null;
@@ -207,44 +276,46 @@ export default function MonologuePage() {
       if (sourceRef.current) sourceRef.current.disconnect();
       if (audioCtxRef.current) await audioCtxRef.current.close();
 
-      // Close MediaRecorder and persist final blob via your existing API
+      // Persist final blob via your existing finalize API
       const mr = mediaRecorderRef.current;
       if (mr && mr.state !== "inactive") {
-        await new Promise<void>((resolve) => { mr.onstop = () => resolve(); mr.stop(); });
+        await new Promise<void>((resolve) => {
+          mr.onstop = () => resolve();
+          mr.stop();
+        });
       }
 
       if (!sessionRef.current) throw new Error("Session not initialized");
 
-      // Upload and finalize (your existing finalize path)
       if (audioChunks.current.length > 0) {
         const blob = new Blob(audioChunks.current, { type: "audio/webm" });
         const fd = new FormData();
         fd.append("file", blob, "final.webm");
 
-        const uploadRes = await fetch(
-          `http://127.0.0.1:8000/session/${sessionRef.current}/chunk`,
-          { method: "POST", body: fd }
-        );
+        const uploadRes = await fetch(`${API_BASE}/session/${sessionRef.current}/chunk`, {
+          method: "POST",
+          body: fd,
+        });
         if (!uploadRes.ok) {
-          const err = await uploadRes.json();
+          const err = (await uploadRes.json()) as { detail?: string };
           throw new Error(err.detail || "Failed to upload audio chunk");
         }
 
-        const finalizeRes = await fetch(
-          `http://127.0.0.1:8000/session/${sessionRef.current}/finalize`,
-          { method: "POST" }
-        );
+        const finalizeRes = await fetch(`${API_BASE}/session/${sessionRef.current}/finalize`, {
+          method: "POST",
+        });
         if (!finalizeRes.ok) {
-          const err = await finalizeRes.json();
+          const err = (await finalizeRes.json()) as { detail?: string };
           throw new Error(err.detail || "Transcription failed");
         }
 
-        const data = await finalizeRes.json();
+        const data: FinalizeResponse = await finalizeRes.json();
         setFinalTranscript(data.final || "Transcription incomplete.");
-        setAudioUrl(URL.createObjectURL(blob));
+        setAudioUrl(data.audio_url || URL.createObjectURL(blob));
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to stop streaming");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to stop streaming";
+      setError(msg);
     } finally {
       setIsProcessing(false);
     }
@@ -268,11 +339,9 @@ export default function MonologuePage() {
               </h2>
               <p className="max-w-2xl text-center text-gray-700 dark:text-gray-300 text-lg mb-8">
                 Practice your speaking fluency for up to{" "}
-                <span className="font-semibold text-red-600 dark:text-red-400">
-                  3 minutes
-                </span>
-                . If you pause for too long, you’ll automatically receive topic
-                suggestions to keep the monologue flowing.
+                <span className="font-semibold text-red-600 dark:text-red-400">3 minutes</span>. If you
+                pause for too long, you’ll automatically receive topic suggestions to keep the monologue
+                flowing.
               </p>
             </>
           )}
@@ -294,10 +363,7 @@ export default function MonologuePage() {
                 Stop Recording
               </button>
             ) : (
-              <button
-                disabled
-                className="px-8 py-3 bg-gray-500 text-white rounded-full shadow"
-              >
+              <button disabled className="px-8 py-3 bg-gray-500 text-white rounded-full shadow">
                 Processing...
               </button>
             )}

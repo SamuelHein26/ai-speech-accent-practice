@@ -1,3 +1,6 @@
+// app/components/loginModal.tsx
+// Purpose: fix unused var warning, avoid `any` in catch
+
 "use client";
 import { useState } from "react";
 
@@ -7,6 +10,7 @@ interface LoginModalProps {
 }
 
 export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
+  // State: local form state + UX flags
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -14,8 +18,9 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
   if (!isOpen) return null;
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async (ev: React.FormEvent<HTMLFormElement>) => {
+    // Type: precise event type for React form submit
+    ev.preventDefault();
     setError("");
     setLoading(true);
 
@@ -24,7 +29,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     formData.append("password", password);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/login", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString(),
@@ -32,12 +37,14 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
       if (!res.ok) throw new Error("Invalid credentials");
 
-      const data = await res.json();
+      const data: { access_token: string } = await res.json();
       localStorage.setItem("token", data.access_token);
       window.dispatchEvent(new Event("authChange"));
       onClose();
-    } catch (err) {
-      setError("Login failed. Please try again.");
+    } catch (e: unknown) {
+      // Narrow unknown → Error to satisfy no-explicit-any
+      const msg = e instanceof Error ? e.message : "Login failed. Please try again.";
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -56,6 +63,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
         {/* Form */}
         <form onSubmit={handleLogin} className="flex flex-col gap-5">
+          {/* Email */}
           <div>
             <label className="block text-gray-700 dark:text-gray-300 mb-2 text-sm font-medium">
               Email
@@ -64,12 +72,13 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
               type="email"
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(ev) => setEmail(ev.target.value)}
               required
               className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-gray-500 dark:text-gray-100 focus:ring-2 focus:ring-red-500 outline-none transition"
             />
           </div>
 
+          {/* Password */}
           <div>
             <label className="block text-gray-700 dark:text-gray-300 mb-2 text-sm font-medium">
               Password
@@ -78,7 +87,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
               type="password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(ev) => setPassword(ev.target.value)}
               required
               className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-gray-500 dark:text-gray-100 focus:ring-2 focus:ring-red-500 outline-none transition"
             />
