@@ -34,7 +34,7 @@ const RAW_API_BASE =
 
 const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
 
-const SUGGESTION_SILENCE_MS = 12_000;
+const SUGGESTION_SILENCE_MS = 6_000;
 
 const wsURL = (): string => {
   try {

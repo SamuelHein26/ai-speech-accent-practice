@@ -1,13 +1,22 @@
 # routers/sessions.py
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from sqlalchemy.ext.asyncio import AsyncSession
-from database import get_db
+import asyncio
+import os
 from pathlib import Path
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from database import get_db
+from dotenv import load_dotenv
+from models import Session, User
+from schemas import SessionSummary
 from services.auth import get_current_user
 from services.session_manager import SessionManager
 from services.transcription_service import TranscriptionService
-import os, asyncio
-from dotenv import load_dotenv
+
 load_dotenv()
 
 router = APIRouter(prefix="/session", tags=["Sessions"])
@@ -96,3 +105,59 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
     )
 
     return {"final": transcript}
+
+
+@router.get("/history", response_model=list[SessionSummary])
+async def session_history(
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    stmt = (
+        select(Session)
+        .where(Session.user_id == current_user.id)
+        .order_by(Session.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    sessions = result.scalars().all()
+
+    return [
+        SessionSummary(
+            id=s.id,
+            session_id=s.session_id,
+            created_at=s.created_at,
+            duration_seconds=s.duration_seconds,
+            final_transcript=s.final_transcript,
+            audio_available=bool(s.audio_path),
+        )
+        for s in sessions
+    ]
+
+
+@router.get("/{session_id}/audio")
+async def get_session_audio(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    stmt = select(Session).where(Session.session_id == session_id)
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+
+    if not session or session.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    if not session.audio_path or not os.path.exists(session.audio_path):
+        raise HTTPException(status_code=404, detail="Audio file unavailable")
+
+    return FileResponse(
+        session.audio_path,
+        media_type="audio/wav",
+        filename=f"{session.session_id}.wav",
+        headers={"Cache-Control": "no-store"},
+    )

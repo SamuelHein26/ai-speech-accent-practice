@@ -3,6 +3,7 @@
 
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -15,6 +16,8 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
 
   if (!isOpen) return null;
 
@@ -83,14 +86,25 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
             <label className="block text-gray-700 dark:text-gray-300 mb-2 text-sm font-medium">
               Password
             </label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(ev) => setPassword(ev.target.value)}
-              required
-              className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-gray-500 dark:text-gray-100 focus:ring-2 focus:ring-red-500 outline-none transition"
-            />
+            <div className="flex items-center gap-3">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={(ev) => setPassword(ev.target.value)}
+                required
+                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-gray-500 dark:text-gray-100 focus:ring-2 focus:ring-red-500 outline-none transition"
+              />
+              <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={showPassword}
+                  onChange={(ev) => setShowPassword(ev.target.checked)}
+                  className="accent-red-600"
+                />
+                Show
+              </label>
+            </div>
           </div>
 
           {error && <p className="text-red-500 text-sm text-center">{error}</p>}
@@ -112,7 +126,13 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
           >
             Cancel
           </button>
-          <button className="text-red-600 dark:text-red-400 hover:underline cursor-pointer">
+          <button
+            className="text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+            onClick={() => {
+              onClose();
+              router.push("/register");
+            }}
+          >
             Register
           </button>
         </div>
