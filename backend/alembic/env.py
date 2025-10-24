@@ -1,3 +1,16 @@
+# backend/alembic/env.py
+
+# --- sys.path bootstrap so we can import `core` and `models` ---
+import sys
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Resolve .../backend from .../backend/alembic/env.py
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+# --- standard alembic imports ---
 import os
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
@@ -7,12 +20,14 @@ config = context.config
 if config.config_file_name:
     fileConfig(config.config_file_name)
 
-# Import only metadata (no engine creation!)
-from core.db_base import Base
-import models  # ensures all models are registered with Base
+# --- import ONLY metadata (no engine creation here) ---
+from core.db_base import Base          # ✅ now importable
+import models                           # ensure models register with Base
 target_metadata = Base.metadata
 
-# Prefer DATABASE_URL_SYNC; fallback derive from async
+load_dotenv()
+
+# --- choose sync DB URL for Alembic ---
 async_url = os.getenv("DATABASE_URL")
 sync_url = os.getenv("DATABASE_URL_SYNC")
 if not sync_url:
@@ -23,8 +38,10 @@ if not sync_url:
 config.set_main_option("sqlalchemy.url", sync_url)
 
 def run_migrations_offline():
-    url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url, target_metadata=target_metadata, literal_binds=True, compare_type=True)
+    context.configure(url=config.get_main_option("sqlalchemy.url"),
+                      target_metadata=target_metadata,
+                      literal_binds=True,
+                      compare_type=True)
     with context.begin_transaction():
         context.run_migrations()
 
@@ -35,7 +52,9 @@ def run_migrations_online():
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+        context.configure(connection=connection,
+                          target_metadata=target_metadata,
+                          compare_type=True)
         with context.begin_transaction():
             context.run_migrations()
 
