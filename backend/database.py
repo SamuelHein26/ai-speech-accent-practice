@@ -1,6 +1,7 @@
 """Database configuration and session utilities."""
 
 import os
+import ssl
 from typing import Any, Dict
 from urllib.parse import parse_qs, urlparse
 
@@ -27,7 +28,7 @@ def _to_asyncpg_url(url: str) -> str:
     return url.replace("+psycopg2", "+asyncpg")
 
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL is not set")
 
@@ -48,7 +49,8 @@ elif sslmode in {"require", "verify-ca", "verify-full"}:
     enable_ssl = True
 
 if enable_ssl:
-    connect_args["ssl"] = True
+    ssl_context = ssl.create_default_context()
+    connect_args["ssl"] = ssl_context
     print("Database SSL: ENABLED")
 else:
     print("Database SSL: DISABLED (local development)")

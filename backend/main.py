@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from services.session_manager import SessionManager
+from services.storage import SupabaseStorage, SupabaseStorageError
 from services.transcription_service import TranscriptionService
 from services.streaming_transcription_service import StreamingTranscriptionService
 from services.openai_service import OpenAIService
@@ -48,7 +49,8 @@ app.include_router(streaming.router)
 WORKDIR = Path("./live_sessions")
 WORKDIR.mkdir(parents=True, exist_ok=True)
 
-session_manager = SessionManager(WORKDIR)
+storage = SupabaseStorage()
+session_manager = SessionManager(WORKDIR, storage=storage)
 transcriber = TranscriptionService(os.getenv("ASSEMBLYAI_API_KEY"))
 openai_service = OpenAIService(os.getenv("OPENAI_API_KEY"))
 stream_service = StreamingTranscriptionService()
@@ -128,10 +130,39 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
     if process.returncode != 0:
         raise HTTPException(status_code=500, detail=f"FFmpeg conversion failed: {stderr.decode()}")
 
-    # Step 2: Transcribe & cleanup
+    # Step 2: Probe duration (best effort)
+    duration_seconds = None
+    try:
+        probe = await asyncio.create_subprocess_exec(
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=nokey=1:noprint_wrappers=1",
+            wav_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        out, _ = await probe.communicate()
+        duration_seconds = int(float(out.decode().strip()))
+    except Exception:
+        duration_seconds = None
+
+    # Step 3: Transcribe & cleanup
     try:
         transcript = transcriber.transcribe_audio(wav_path)
-        await session_manager.finalize_session(db, session_id)
+        try:
+            await session_manager.finalize_and_persist(
+                db,
+                session_id,
+                transcript_text=transcript,
+                wav_path=wav_path,
+                duration_seconds=duration_seconds,
+            )
+        except SupabaseStorageError as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
         return {"final": transcript}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Transcription error: {e}")
