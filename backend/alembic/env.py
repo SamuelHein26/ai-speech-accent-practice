@@ -28,12 +28,15 @@ target_metadata = Base.metadata
 load_dotenv()
 
 # --- choose sync DB URL for Alembic ---
-async_url = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
-sync_url = os.getenv("DATABASE_URL_SYNC")
-if not sync_url:
-    if not async_url:
-        raise RuntimeError("Neither SUPABASE_DB_URL/DATABASE_URL nor DATABASE_URL_SYNC is set")
-    sync_url = async_url.replace("+asyncpg", "+psycopg2").replace("ssl=require", "sslmode=require")
+database_url = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
+if not database_url:
+    raise RuntimeError("Neither SUPABASE_DB_URL nor DATABASE_URL is set")
+
+# Alembic expects a synchronous driver; swap if an async URL is provided.
+sync_url = database_url.replace("+asyncpg", "+psycopg2")
+
+# Older env vars might use the Supabase `ssl=require` query param.
+sync_url = sync_url.replace("ssl=require", "sslmode=require")
 
 config.set_main_option("sqlalchemy.url", sync_url)
 
