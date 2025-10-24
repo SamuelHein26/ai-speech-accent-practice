@@ -1,5 +1,7 @@
-from pydantic import BaseModel, EmailStr
 from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, EmailStr
 
 class UserCreate(BaseModel):
     username: str
@@ -22,6 +24,35 @@ class UserResponse(BaseModel):
         orm_mode = True
 
 
+class UserProfileResponse(UserResponse):
+    total_sessions: int
+
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+
+class TopicRequest(BaseModel):
+    transcript: str
+
+
+class TopicResponse(BaseModel):
+    topics: List[str]
+
+
+class SessionSummary(BaseModel):
+    id: int
+    session_id: str
+    created_at: datetime
+    duration_seconds: Optional[int]
+    final_transcript: Optional[str]
+    audio_available: bool
+
+    class Config:
+        orm_mode = True
