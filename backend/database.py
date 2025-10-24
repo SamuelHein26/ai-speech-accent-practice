@@ -28,9 +28,15 @@ def _to_asyncpg_url(url: str) -> str:
     return url.replace("+psycopg2", "+asyncpg")
 
 
-DATABASE_URL = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
+DATABASE_URL = (
+    os.getenv("SUPABASE_DB_URL")
+    or os.getenv("DATABASE_URL")
+    or os.getenv("DATABASE_URL_SYNC")
+)
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL is not set")
+    raise ValueError(
+        "None of SUPABASE_DB_URL, DATABASE_URL, or DATABASE_URL_SYNC are set"
+    )
 
 ASYNC_URL = _to_asyncpg_url(DATABASE_URL)
 

@@ -9,6 +9,7 @@ following environment variables when starting the FastAPI service:
 
 * `SUPABASE_DB_URL` &mdash; preferred. Use the full connection string from the Supabase dashboard (Service Role works best) and be sure it includes `sslmode=require`.
 * `DATABASE_URL` &mdash; legacy fallback. If `SUPABASE_DB_URL` is absent we will read this variable instead.
+* `DATABASE_URL_SYNC` &mdash; optional override for environments where only a synchronous DSN is available during migrations.
 
 For production deployments leave `DATABASE_SSL` unset (or set it to `true`). This
 allows the app to create a TLS context for Supabase automatically. In local

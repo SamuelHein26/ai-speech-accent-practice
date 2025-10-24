@@ -28,9 +28,15 @@ target_metadata = Base.metadata
 load_dotenv()
 
 # --- choose sync DB URL for Alembic ---
-database_url = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
+database_url = (
+    os.getenv("SUPABASE_DB_URL")
+    or os.getenv("DATABASE_URL")
+    or os.getenv("DATABASE_URL_SYNC")
+)
 if not database_url:
-    raise RuntimeError("Neither SUPABASE_DB_URL nor DATABASE_URL is set")
+    raise RuntimeError(
+        "None of SUPABASE_DB_URL, DATABASE_URL, or DATABASE_URL_SYNC are set"
+    )
 
 # Alembic expects a synchronous driver; swap if an async URL is provided.
 sync_url = database_url.replace("+asyncpg", "+psycopg2")
