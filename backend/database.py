@@ -1,9 +1,10 @@
 """Database configuration and session utilities."""
 
 import os
+import socket
 import ssl
 from typing import Any, Dict
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlunparse
 
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -37,6 +38,36 @@ if not DATABASE_URL:
     raise ValueError(
         "None of SUPABASE_DB_URL, DATABASE_URL, or DATABASE_URL_SYNC are set"
     )
+
+
+def _ensure_ipv4_hostaddr(url: str) -> str:
+    """Append hostaddr=<ipv4> so libpq clients skip unreachable IPv6 records."""
+
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        return url
+
+    existing_params = parse_qsl(parsed.query, keep_blank_values=True)
+    if any(key == "hostaddr" for key, _ in existing_params):
+        return url
+
+    port = parsed.port or 5432
+    try:
+        infos = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+    except OSError:
+        return url
+
+    ipv4 = next((info[4][0] for info in infos if info[0] == socket.AF_INET), None)
+    if not ipv4:
+        return url
+
+    updated_params = existing_params + [("hostaddr", ipv4)]
+    new_query = urlencode(updated_params, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
+
+
+DATABASE_URL = _ensure_ipv4_hostaddr(DATABASE_URL)
 
 ASYNC_URL = _to_asyncpg_url(DATABASE_URL)
 
