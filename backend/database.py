@@ -1,32 +1,29 @@
-# backend/database.py
+"""Database configuration and session utilities."""
 
 import os
-from typing import Dict, Any
+from typing import Any, Dict
+from urllib.parse import parse_qs, urlparse
+
+from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
 
 from core.db_base import Base
 
 load_dotenv()
 
+
 def _to_asyncpg_url(url: str) -> str:
-    """
-    Normalize any postgres URL into an asyncpg DSN for SQLAlchemy's asyncio dialect.
-    Handles: postgresql://..., postgres://..., postgresql+psycopg2://...
-    """
+    """Normalize any Postgres URL so SQLAlchemy uses the asyncpg driver."""
     if "+asyncpg" in url:
         return url  # already async
 
-    # postgres:// → postgresql+asyncpg://
     if url.startswith("postgres://"):
         return "postgresql+asyncpg://" + url[len("postgres://") :]
 
-    # postgresql:// → postgresql+asyncpg://
     if url.startswith("postgresql://"):
         return "postgresql+asyncpg://" + url[len("postgresql://") :]
 
-    # postgresql+psycopg2:// → postgresql+asyncpg://
     return url.replace("+psycopg2", "+asyncpg")
 
 
@@ -36,18 +33,24 @@ if not DATABASE_URL:
 
 ASYNC_URL = _to_asyncpg_url(DATABASE_URL)
 
-# SSL configuration: only enable for production environments
+# SSL configuration: opt-in via env var or automatically honour sslmode=require
 connect_args: Dict[str, Any] = {}
 
-# Check if SSL should be enabled (opt-in via environment variable)
-enable_ssl = os.getenv("DATABASE_SSL", "false").lower() == "true"
+explicit_ssl = os.getenv("DATABASE_SSL")
+parsed = urlparse(DATABASE_URL)
+query_params = {k: v[0].lower() for k, v in parse_qs(parsed.query).items() if v}
+sslmode = query_params.get("sslmode")
+
+enable_ssl = False
+if explicit_ssl is not None:
+    enable_ssl = explicit_ssl.lower() in {"1", "true", "yes"}
+elif sslmode in {"require", "verify-ca", "verify-full"}:
+    enable_ssl = True
 
 if enable_ssl:
-    # Production: require SSL
     connect_args["ssl"] = True
     print("Database SSL: ENABLED")
 else:
-    # Local development: no SSL
     print("Database SSL: DISABLED (local development)")
 
 # Create async engine
@@ -61,7 +64,8 @@ engine = create_async_engine(
 # Async session factory
 SessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
-# DI helper
+
 async def get_db():
+    """FastAPI dependency that yields a single async session per request."""
     async with SessionLocal() as session:
         yield session
