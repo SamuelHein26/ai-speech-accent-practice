@@ -1,12 +1,13 @@
 "use client";
 
 import Header from "../components/Header";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import LiveWaveform from "../components/LiveWaveform";
 
 // ---- API response types (strict typing; no any) ----
 type StartSessionResponse = { session_id: string; is_guest: boolean };
 type FinalizeResponse = { final: string; audio_url?: string };
+type TopicResponse = { topics: string[] };
 
 function createAudioContext(desiredSampleRate = 48000): AudioContext {
   const w = window as unknown as {
@@ -33,6 +34,8 @@ const RAW_API_BASE =
 
 const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
 
+const SUGGESTION_SILENCE_MS = 12_000;
+
 const wsURL = (): string => {
   try {
     const u = new URL(API_BASE);
@@ -56,6 +59,10 @@ export default function MonologuePage() {
   const [finalTranscript, setFinalTranscript] = useState("");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
+  const [lastSuggestionSource, setLastSuggestionSource] = useState<"auto" | "manual" | null>(null);
 
   // Live render text: committed final turns + replaceable partial
   const [liveCommitted, setLiveCommitted] = useState("");
@@ -63,6 +70,7 @@ export default function MonologuePage() {
 
   // Display text assembled from committed + partial
   const displayText = [liveCommitted, livePartial].filter(Boolean).join(" ");
+  const suggestionLeadSeconds = Math.round(SUGGESTION_SILENCE_MS / 1000);
 
   /** === Session & Media Refs === */
   const sessionRef = useRef<string | null>(null);
@@ -74,6 +82,8 @@ export default function MonologuePage() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const lastSpeechAtRef = useRef<number>(Date.now());
+  const suggestionCooldownRef = useRef(false);
 
   /** === Dedup guards === */
   const lastFinalRef = useRef<string>("");   // last finalized string
@@ -107,6 +117,101 @@ export default function MonologuePage() {
       }
     };
   }, []);
+
+  const registerSpeechActivity = useCallback(() => {
+    lastSpeechAtRef.current = Date.now();
+    suggestionCooldownRef.current = false;
+    setSuggestionError((prev) => (prev ? null : prev));
+    setLastSuggestionSource((prev) => (prev === "auto" ? null : prev));
+  }, []);
+
+  const requestSuggestions = useCallback(
+    async (source: "auto" | "manual") => {
+      const transcriptSnapshot = [liveCommitted, livePartial]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+      if (!transcriptSnapshot) {
+        if (source === "manual") {
+          setSuggestionError(
+            "Speak for a few seconds so we can tailor fresh topics."
+          );
+        }
+        return;
+      }
+
+      suggestionCooldownRef.current = true;
+      setIsFetchingSuggestions(true);
+      setSuggestionError(null);
+
+      try {
+        const token =
+          typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+        const response = await fetch(`${API_BASE}/topics/generate`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ transcript: transcriptSnapshot }),
+        });
+
+        if (!response.ok) {
+          let detail: string | undefined;
+          try {
+            const err = (await response.json()) as { detail?: string };
+            detail = err.detail;
+          } catch {
+            detail = undefined;
+          }
+          throw new Error(detail || "Failed to fetch topic suggestions");
+        }
+
+        const data: TopicResponse = await response.json();
+        if (!Array.isArray(data.topics) || data.topics.length === 0) {
+          setSuggestions([]);
+          setSuggestionError("No fresh ideas were generated. Try again soon.");
+          setLastSuggestionSource(null);
+        } else {
+          setSuggestions(data.topics);
+          setLastSuggestionSource(source);
+        }
+      } catch (e: unknown) {
+        const message =
+          e instanceof Error
+            ? e.message
+            : "Unable to generate new topics right now.";
+        setSuggestionError(message);
+        suggestionCooldownRef.current = false;
+      } finally {
+        setIsFetchingSuggestions(false);
+      }
+    },
+    [liveCommitted, livePartial]
+  );
+
+  useEffect(() => {
+    if (!isRecording) return;
+
+    lastSpeechAtRef.current = Date.now();
+
+    const interval = window.setInterval(() => {
+      const elapsed = Date.now() - lastSpeechAtRef.current;
+      if (
+        elapsed >= SUGGESTION_SILENCE_MS &&
+        !suggestionCooldownRef.current &&
+        !isFetchingSuggestions
+      ) {
+        void requestSuggestions("auto");
+      }
+    }, 1000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [isRecording, isFetchingSuggestions, requestSuggestions]);
 
   /** === PCM Conversion Utilities === */
   // Convert Float32 samples [-1..1] → Int16 little-endian PCM
@@ -154,6 +259,12 @@ export default function MonologuePage() {
     lastFinalRef.current = "";
     lastPartialRef.current = "";
     setAudioUrl(null);
+    setSuggestions([]);
+    setIsFetchingSuggestions(false);
+    setSuggestionError(null);
+    setLastSuggestionSource(null);
+    suggestionCooldownRef.current = false;
+    lastSpeechAtRef.current = Date.now();
 
     try {
       // Create/ensure a DB session for this recording
@@ -232,6 +343,8 @@ export default function MonologuePage() {
             const isFinal = Boolean(msg["turn_is_formatted"] || msg["is_final"]);
 
             if (!text) return;
+
+            registerSpeechActivity();
 
             if (isFinal) {
               if (text !== lastFinalRef.current) {
@@ -390,6 +503,73 @@ export default function MonologuePage() {
               <p className="min-h-[120px] whitespace-pre-wrap text-gray-700 dark:text-gray-300">
                 {displayText || "Listening... start speaking."}
               </p>
+            </div>
+          )}
+
+          {(isRecording || suggestions.length > 0 || isFetchingSuggestions || suggestionError) && (
+            <div className="w-full max-w-2xl mt-6 bg-slate-50 dark:bg-slate-900/60 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold">Topic Suggestions</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void requestSuggestions("manual");
+                  }}
+                  disabled={!isRecording || isFetchingSuggestions}
+                  className="px-4 py-2 rounded-full text-sm font-medium bg-red-500 text-white shadow hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isFetchingSuggestions ? "Generating..." : "New ideas"}
+                </button>
+              </div>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                We&apos;ll surface prompts automatically after about {suggestionLeadSeconds} seconds of silence.
+              </p>
+
+              {isFetchingSuggestions && (
+                <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
+                  Listening to your last thoughts and preparing fresh prompts...
+                </p>
+              )}
+
+              {suggestionError && (
+                <p className="mt-4 text-sm text-red-600 dark:text-red-400">
+                  {suggestionError}
+                </p>
+              )}
+
+              {!isFetchingSuggestions && !suggestionError && suggestions.length === 0 && (
+                <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
+                  Keep the monologue flowing. Pause too long and we&apos;ll jump in with inspiration, or tap &quot;New ideas&quot; anytime.
+                </p>
+              )}
+
+              {suggestions.length > 0 && (
+                <ul className="mt-4 space-y-3">
+                  {suggestions.map((topic, index) => (
+                    <li
+                      key={`${topic}-${index}`}
+                      className="flex items-start gap-3 rounded-2xl bg-white dark:bg-gray-800/80 px-4 py-3 shadow-sm border border-slate-200 dark:border-slate-700"
+                    >
+                      <span className="mt-0.5 text-sm font-semibold text-red-500 dark:text-red-400">
+                        {index + 1}.
+                      </span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{topic}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {lastSuggestionSource === "auto" && suggestions.length > 0 && (
+                <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                  We noticed a pause and added these prompts to help you keep going.
+                </p>
+              )}
+
+              {lastSuggestionSource === "manual" && suggestions.length > 0 && (
+                <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                  Need something new? Feel free to refresh ideas whenever you like.
+                </p>
+              )}
             </div>
           )}
 

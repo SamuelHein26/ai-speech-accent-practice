@@ -1,5 +1,7 @@
-from pydantic import BaseModel, EmailStr
 from datetime import datetime
+from typing import List
+
+from pydantic import BaseModel, EmailStr
 
 class UserCreate(BaseModel):
     username: str
@@ -25,3 +27,11 @@ class UserResponse(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+
+class TopicRequest(BaseModel):
+    transcript: str
+
+
+class TopicResponse(BaseModel):
+    topics: List[str]

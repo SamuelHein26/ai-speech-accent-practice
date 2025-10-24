@@ -15,6 +15,7 @@ from services.streaming_transcription_service import StreamingTranscriptionServi
 from services.openai_service import OpenAIService
 from fastapi_utils.tasks import repeat_every
 from routers import users, sessions, auth_router, streaming
+from schemas import TopicRequest, TopicResponse
 
 # Load environment variables
 load_dotenv()
@@ -137,12 +138,16 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
 
 
 # === Topic Generation ===
-@app.post("/topics/generate")
-async def generate_topics(transcript: str):
-    """Generate topic suggestions."""
+@app.post("/topics/generate", response_model=TopicResponse)
+async def generate_topics(payload: TopicRequest):
+    """Generate topic suggestions based on the user's recent monologue."""
+    transcript = payload.transcript.strip()
+    if not transcript:
+        raise HTTPException(status_code=400, detail="Transcript is empty")
+
     try:
         topics = await asyncio.to_thread(openai_service.generate_topics, transcript)
-        return {"topics": topics}
+        return TopicResponse(topics=topics)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"OpenAI error: {e}")
 
