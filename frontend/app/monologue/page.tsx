@@ -27,21 +27,23 @@ function createAudioContext(desiredSampleRate = 48000): AudioContext {
 }
 
 // ---- Helpers: build base API + WS URLs safely ----
-const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_BASE_URL) || "http://127.0.0.1:8000";
+const RAW_API_BASE =
+  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_BASE_URL) ||
+  "http://127.0.0.1:8000";
+
+const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
 
 const wsURL = (): string => {
-  // If API_BASE is absolute (https://api...), derive matching ws scheme
   try {
     const u = new URL(API_BASE);
     u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
-    u.pathname = "/ws/stream";
+    u.pathname = "/ws/stream"; // no trailing slash
     u.search = "";
     u.hash = "";
     return u.toString();
   } catch {
-    // Fallback from current origin
-    const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+    const isHttps =
+      typeof window !== "undefined" && window.location.protocol === "https:";
     return `${isHttps ? "wss" : "ws"}://${window.location.host}/ws/stream`;
   }
 };

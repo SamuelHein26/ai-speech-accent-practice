@@ -19,19 +19,24 @@ from routers import users, sessions, auth_router, streaming
 # Load environment variables
 load_dotenv()
 
-app = FastAPI(title="Monologue AI Backend")
+app = FastAPI()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
 # === CORS Config ===
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    # "https://ai-speech-accent-practice.vercel.app",   # your Vercel domain
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in CORS_ORIGINS if o.strip()],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,
+    allow_credentials=True,       # if you send cookies/auth headers
+    allow_methods=["*"],          # important for POST/OPTIONS
+    allow_headers=["*"],          # important for Authorization, Content-Type, etc.
 )
+
 
 app.include_router(users.router)
 app.include_router(sessions.router)
@@ -47,12 +52,10 @@ transcriber = TranscriptionService(os.getenv("ASSEMBLYAI_API_KEY"))
 openai_service = OpenAIService(os.getenv("OPENAI_API_KEY"))
 stream_service = StreamingTranscriptionService()
 
-@app.on_event("startup")
-@repeat_every(seconds=3600)
-async def scheduled_cleanup() -> None:
-    """Periodic cleanup for expired guest sessions."""
-    async with SessionLocal() as db:
-        await session_manager.cleanup_expired_sessions(db)
+@app.get("/")
+def health():
+    return {"status": "ok"}
+
         
 @app.websocket("/ws/stream")
 async def websocket_stream(ws: WebSocket):

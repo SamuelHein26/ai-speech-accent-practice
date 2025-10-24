@@ -6,14 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
-# If you actually keep Base in core/db_base.py, import from there; otherwise from your local Base module.
-from core.db_base import Base  # or: from .db_base import Base
+from core.db_base import Base
 
 load_dotenv()
 
 def _to_asyncpg_url(url: str) -> str:
     """
-    Normalize any postgres URL into an asyncpg DSN for SQLAlchemy’s asyncio dialect.
+    Normalize any postgres URL into an asyncpg DSN for SQLAlchemy's asyncio dialect.
     Handles: postgresql://..., postgres://..., postgresql+psycopg2://...
     """
     if "+asyncpg" in url:
@@ -37,12 +36,21 @@ if not DATABASE_URL:
 
 ASYNC_URL = _to_asyncpg_url(DATABASE_URL)
 
-# asyncpg needs SSL on Render. Provide via connect_args so you don’t rely on query params.
+# SSL configuration: only enable for production environments
 connect_args: Dict[str, Any] = {}
-# Render requires TLS; for asyncpg, ssl=True is enough unless you want a custom SSLContext.
-connect_args["ssl"] = True
 
-# Create async engine (AIO)
+# Check if SSL should be enabled (opt-in via environment variable)
+enable_ssl = os.getenv("DATABASE_SSL", "false").lower() == "true"
+
+if enable_ssl:
+    # Production: require SSL
+    connect_args["ssl"] = True
+    print("Database SSL: ENABLED")
+else:
+    # Local development: no SSL
+    print("Database SSL: DISABLED (local development)")
+
+# Create async engine
 engine = create_async_engine(
     ASYNC_URL,
     echo=True,

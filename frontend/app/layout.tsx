@@ -26,11 +26,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className="overflow no-scrollbar">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white text-black dark:bg-gray-900 dark:text-white`}>
+      <body 
+        suppressHydrationWarning 
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white text-black dark:bg-gray-900 dark:text-white`}
+      >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem={true}>
-        {children}
+          {children}
         </ThemeProvider>
-      <Footer/>
+        <Footer/>
       </body>
     </html>
   );

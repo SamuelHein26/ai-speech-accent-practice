@@ -4,7 +4,8 @@
 import shutil
 import uuid
 from pathlib import Path
-from sqlalchemy import select
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from models import Session
 
@@ -92,3 +93,32 @@ class SessionManager:
 
         # Remove temporary working dir last
         shutil.rmtree(work_dir, ignore_errors=True)
+
+    async def cleanup_expired_sessions(self, db: AsyncSession, max_age_hours: int = 24) -> None:
+        """
+        Clean up old guest sessions that were never finalized.
+        Removes both database records and working directories.
+        """
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+        
+        # Find expired guest sessions
+        stmt = select(Session).where(
+            Session.is_guest == True,
+            Session.created_at < cutoff_time,
+            Session.final_transcript.is_(None)  # Never finalized
+        )
+        result = await db.execute(stmt)
+        expired_sessions = result.scalars().all()
+
+        for session in expired_sessions:
+            # Clean up working directory
+            work_dir = self.workdir / session.session_id
+            if work_dir.exists():
+                shutil.rmtree(work_dir, ignore_errors=True)
+            
+            # Delete from database
+            await db.delete(session)
+        
+        if expired_sessions:
+            await db.commit()
+            print(f"Cleaned up {len(expired_sessions)} expired guest sessions")
