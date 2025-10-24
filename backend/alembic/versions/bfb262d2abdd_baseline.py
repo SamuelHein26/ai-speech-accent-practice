@@ -1,75 +1,57 @@
-"""baseline: enforce invariants + add index
+"""baseline: create users & sessions (and indexes); optional backfills guarded"""
 
-Revision ID: bfb262d2abdd
-Revises:
-Create Date: 2025-10-23 23:22:37.549413
-"""
-# DDL/DML for initial alignment when DB already has tables.
+from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
+# revision identifiers, used by Alembic.
+revision: str = "bfb262d2abdd"
+down_revision: Union[str, Sequence[str], None] = None
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
 
 
-# Alembic identifiers
-revision = "bfb262d2abdd"
-down_revision = None
-branch_labels = None
-depends_on = None
-
-
-def upgrade():
-    # Ensure UUID function exists for backfill (idempotent)
-    op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
-
-    # Backfill before constraints
-    op.execute("UPDATE sessions SET is_guest = false WHERE is_guest IS NULL;")
-    # If any NULL session_id rows exist, backfill with UUID text
-    op.execute("""
-        UPDATE sessions
-        SET session_id = gen_random_uuid()::text
-        WHERE session_id IS NULL;
-    """)
-
-    # Enforce NOT NULL + default on is_guest
-    op.alter_column(
-        "sessions",
-        "is_guest",
-        existing_type=sa.Boolean(),
-        nullable=False,
-        server_default=sa.text("false"),
+def upgrade() -> None:
+    # 1) Create users
+    op.create_table(
+        "users",
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("username", sa.String(100), nullable=False, unique=True),
+        sa.Column("email", sa.String(150), nullable=False, unique=True),
+        sa.Column("hashed_password", sa.String(255), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
     )
+    op.create_index("ix_users_id", "users", ["id"])
 
-    # Enforce NOT NULL on session_id
-    op.alter_column(
+    # 2) Create sessions
+    op.create_table(
         "sessions",
-        "session_id",
-        existing_type=sa.String(),
-        nullable=False,
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("session_id", sa.String, unique=True, index=True),
+        sa.Column("user_id", sa.Integer, sa.ForeignKey("users.id"), nullable=True),
+        sa.Column("is_guest", sa.Boolean, nullable=False, server_default=sa.text("false")),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
+        sa.Column("final_transcript", sa.Text, nullable=True),
+        sa.Column("audio_path", sa.String(512), nullable=True),
+        sa.Column("duration_seconds", sa.Integer, nullable=True),
     )
+    op.create_index("ix_sessions_id", "sessions", ["id"])
+    op.create_index("ix_sessions_session_id", "sessions", ["session_id"], unique=True)
 
-    # Helpful composite index for profile queries
-    op.create_index(
-        "ix_sessions_user_created",
-        "sessions",
-        ["user_id", "created_at"],
-        unique=False,
-    )
+    # 3) OPTIONAL: backfill / data fixes (guarded so fresh DBs won’t error)
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    if insp.has_table("sessions"):
+        # If you previously had NULLs in is_guest in an existing DB, this will fix them.
+        op.execute("UPDATE sessions SET is_guest = false WHERE is_guest IS NULL;")
 
 
-def downgrade():
-    # Drop composite index
-    op.drop_index("ix_sessions_user_created", table_name="sessions")
+def downgrade() -> None:
+    # Drop in reverse order
+    op.drop_index("ix_sessions_session_id", table_name="sessions")
+    op.drop_index("ix_sessions_id", table_name="sessions")
+    op.drop_table("sessions")
 
-    # Relax constraints (reverse)
-    op.alter_column(
-        "sessions",
-        "session_id",
-        existing_type=sa.String(),
-        nullable=True,
-    )
-    op.alter_column(
-        "sessions",
-        "is_guest",
-        existing_type=sa.Boolean(),
-        nullable=True,
-        server_default=None,
-    )
+    op.drop_index("ix_users_id", table_name="users")
+    op.drop_table("users")
