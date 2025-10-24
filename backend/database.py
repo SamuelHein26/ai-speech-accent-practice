@@ -1,53 +1,95 @@
-# backend/database.py
+"""Database configuration and session utilities."""
 
 import os
-from typing import Dict, Any
+import socket
+import ssl
+from typing import Any, Dict
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlunparse
+
+from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
 
 from core.db_base import Base
 
 load_dotenv()
 
+
 def _to_asyncpg_url(url: str) -> str:
-    """
-    Normalize any postgres URL into an asyncpg DSN for SQLAlchemy's asyncio dialect.
-    Handles: postgresql://..., postgres://..., postgresql+psycopg2://...
-    """
+    """Normalize any Postgres URL so SQLAlchemy uses the asyncpg driver."""
     if "+asyncpg" in url:
         return url  # already async
 
-    # postgres:// → postgresql+asyncpg://
     if url.startswith("postgres://"):
         return "postgresql+asyncpg://" + url[len("postgres://") :]
 
-    # postgresql:// → postgresql+asyncpg://
     if url.startswith("postgresql://"):
         return "postgresql+asyncpg://" + url[len("postgresql://") :]
 
-    # postgresql+psycopg2:// → postgresql+asyncpg://
     return url.replace("+psycopg2", "+asyncpg")
 
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = (
+    os.getenv("SUPABASE_DB_URL")
+    or os.getenv("DATABASE_URL")
+    or os.getenv("DATABASE_URL_SYNC")
+)
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL is not set")
+    raise ValueError(
+        "None of SUPABASE_DB_URL, DATABASE_URL, or DATABASE_URL_SYNC are set"
+    )
+
+
+def _ensure_ipv4_hostaddr(url: str) -> str:
+    """Append hostaddr=<ipv4> so libpq clients skip unreachable IPv6 records."""
+
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        return url
+
+    existing_params = parse_qsl(parsed.query, keep_blank_values=True)
+    if any(key == "hostaddr" for key, _ in existing_params):
+        return url
+
+    port = parsed.port or 5432
+    try:
+        infos = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+    except OSError:
+        return url
+
+    ipv4 = next((info[4][0] for info in infos if info[0] == socket.AF_INET), None)
+    if not ipv4:
+        return url
+
+    updated_params = existing_params + [("hostaddr", ipv4)]
+    new_query = urlencode(updated_params, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
+
+
+DATABASE_URL = _ensure_ipv4_hostaddr(DATABASE_URL)
 
 ASYNC_URL = _to_asyncpg_url(DATABASE_URL)
 
-# SSL configuration: only enable for production environments
+# SSL configuration: opt-in via env var or automatically honour sslmode=require
 connect_args: Dict[str, Any] = {}
 
-# Check if SSL should be enabled (opt-in via environment variable)
-enable_ssl = os.getenv("DATABASE_SSL", "false").lower() == "true"
+explicit_ssl = os.getenv("DATABASE_SSL")
+parsed = urlparse(DATABASE_URL)
+query_params = {k: v[0].lower() for k, v in parse_qs(parsed.query).items() if v}
+sslmode = query_params.get("sslmode")
+
+enable_ssl = False
+if explicit_ssl is not None:
+    enable_ssl = explicit_ssl.lower() in {"1", "true", "yes"}
+elif sslmode in {"require", "verify-ca", "verify-full"}:
+    enable_ssl = True
 
 if enable_ssl:
-    # Production: require SSL
-    connect_args["ssl"] = True
+    ssl_context = ssl.create_default_context()
+    connect_args["ssl"] = ssl_context
     print("Database SSL: ENABLED")
 else:
-    # Local development: no SSL
     print("Database SSL: DISABLED (local development)")
 
 # Create async engine
@@ -61,7 +103,8 @@ engine = create_async_engine(
 # Async session factory
 SessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
-# DI helper
+
 async def get_db():
+    """FastAPI dependency that yields a single async session per request."""
     async with SessionLocal() as session:
         yield session

@@ -1,18 +1,30 @@
 # routers/sessions.py
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from sqlalchemy.ext.asyncio import AsyncSession
-from database import get_db
+import asyncio
+import os
+from io import BytesIO
 from pathlib import Path
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from database import get_db
+from dotenv import load_dotenv
+from models import Session, User
+from schemas import SessionSummary
 from services.auth import get_current_user
 from services.session_manager import SessionManager
+from services.storage import SupabaseStorage, SupabaseStorageError
 from services.transcription_service import TranscriptionService
-import os, asyncio
-from dotenv import load_dotenv
+
 load_dotenv()
 
 router = APIRouter(prefix="/session", tags=["Sessions"])
 
-session_manager = SessionManager(Path("./live_sessions"))
+storage = SupabaseStorage()
+session_manager = SessionManager(Path("./live_sessions"), storage=storage)
 transcriber = TranscriptionService(os.getenv("ASSEMBLYAI_API_KEY"))
 
 @router.post("/start")
@@ -87,12 +99,92 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Transcription error: {e}")
 
     # 4) Persist (users) or purge (guests)
-    await session_manager.finalize_and_persist(
-        db,
-        session_id,
-        transcript_text=transcript,
-        wav_path=wav_path,
-        duration_seconds=duration_seconds,
-    )
+    try:
+        await session_manager.finalize_and_persist(
+            db,
+            session_id,
+            transcript_text=transcript,
+            wav_path=wav_path,
+            duration_seconds=duration_seconds,
+        )
+    except SupabaseStorageError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
     return {"final": transcript}
+
+
+@router.get("/history", response_model=list[SessionSummary])
+async def session_history(
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    stmt = (
+        select(
+            Session.id,
+            Session.session_id,
+            Session.created_at,
+            Session.duration_seconds,
+            Session.final_transcript,
+            Session.audio_path.isnot(None).label("audio_available"),
+        )
+        .where(Session.user_id == current_user.id)
+        .order_by(Session.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    sessions = result.all()
+
+    return [
+        SessionSummary(
+            id=row.id,
+            session_id=row.session_id,
+            created_at=row.created_at,
+            duration_seconds=row.duration_seconds,
+            final_transcript=row.final_transcript,
+            audio_available=row.audio_available,
+        )
+        for row in sessions
+    ]
+
+
+@router.get("/{session_id}/audio")
+async def get_session_audio(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    stmt = select(Session).where(Session.session_id == session_id)
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+
+    if not session or session.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    if not session.audio_path:
+        raise HTTPException(status_code=404, detail="Audio file unavailable")
+
+    if storage.is_configured():
+        try:
+            audio_bytes = await storage.download_audio(session.audio_path)
+        except SupabaseStorageError as exc:
+            raise HTTPException(status_code=502, detail=str(exc))
+        audio_stream = BytesIO(audio_bytes)
+    else:
+        file_path = Path(session.audio_path)
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Audio file unavailable")
+        audio_stream = file_path.open("rb")
+
+    return StreamingResponse(
+        audio_stream,
+        media_type="audio/wav",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": f"inline; filename={session.session_id}.wav",
+        },
+    )
