@@ -1,26 +1,28 @@
 # services/session_manager.py
 # SRP: session lifecycle + persistence. Persists artifacts for logged-in users, purges guests.
 
+import os
 import shutil
 import uuid
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select, delete
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from models import Session
+from services.storage import SupabaseStorage, SupabaseStorageError
 
 
 class SessionManager:
     """Handles creation, storage paths, and finalize semantics."""
 
-    def __init__(self, workdir: Path):
+    def __init__(self, workdir: Path, storage: SupabaseStorage | None = None):
         # Ephemeral workspace for in-progress recordings (per-session dir)
         self.workdir = Path(workdir)
         self.workdir.mkdir(parents=True, exist_ok=True)
-
-        # Permanent store for finalized user recordings
-        self.persist_root = Path("./recordings")
-        self.persist_root.mkdir(parents=True, exist_ok=True)
+        self.storage = storage
+        self.archive_root = Path(os.getenv("SESSION_ARCHIVE_DIR", "./recordings"))
 
     async def create_session(self, db: AsyncSession, user_id=None, is_guest=False):
         """Create a new row and a working directory for the recording session."""
@@ -55,7 +57,7 @@ class SessionManager:
         """
         Persist or purge after transcription.
         - Guests: delete working dir and row (ephemeral by design).
-        - Users: move WAV to ./recordings/user_<id>/<session_id>.wav and write transcript/duration.
+        - Users: store transcript/duration metadata and archive the WAV via storage or disk.
         """
         result = await db.execute(select(Session).where(Session.session_id == session_id))
         row = result.scalar_one_or_none()
@@ -75,24 +77,41 @@ class SessionManager:
             await db.commit()
             return
 
-        # Persist for authenticated user
-        user_dir = self.persist_root / f"user_{row.user_id}"
-        user_dir.mkdir(parents=True, exist_ok=True)
-
-        dest = user_dir / f"{session_id}.wav"
-
-        # Move the produced WAV to permanent storage
-        shutil.move(str(wav_path), str(dest))
-
         # Store metadata on session row
         row.final_transcript = transcript_text or None
-        row.audio_path = str(dest.resolve())
         row.duration_seconds = duration_seconds
 
-        await db.commit()
+        # Persist audio artifact either to Supabase storage (preferred) or the local
+        # archive directory when Supabase is not configured (local development).
+        try:
+            if self.storage and self.storage.is_configured():
+                object_key = self._build_storage_key(row.user_id, session_id)
+                stored_key = await self.storage.upload_audio(object_key, wav_path)
+                row.audio_path = stored_key
+                # Uploaded successfully; the local WAV is no longer needed.
+                try:
+                    os.remove(wav_path)
+                except FileNotFoundError:
+                    pass
+            else:
+                # Local fallback: move the WAV into a stable recordings directory so we
+                # can continue serving downloads during development without Supabase.
+                archive_dir = self.archive_root / (str(row.user_id) if row.user_id else "guests")
+                archive_dir.mkdir(parents=True, exist_ok=True)
+                destination = archive_dir / f"{session_id}.wav"
+                shutil.move(wav_path, destination)
+                row.audio_path = str(destination)
 
-        # Remove temporary working dir last
-        shutil.rmtree(work_dir, ignore_errors=True)
+            await db.commit()
+        except SupabaseStorageError:
+            await db.rollback()
+            raise
+        except Exception:
+            await db.rollback()
+            raise
+        finally:
+            # Remove temporary working dir last
+            shutil.rmtree(work_dir, ignore_errors=True)
 
     async def cleanup_expired_sessions(self, db: AsyncSession, max_age_hours: int = 24) -> None:
         """
@@ -122,3 +141,10 @@ class SessionManager:
         if expired_sessions:
             await db.commit()
             print(f"Cleaned up {len(expired_sessions)} expired guest sessions")
+
+    # Internal helpers -------------------------------------------------------------
+    def _build_storage_key(self, user_id: int | None, session_id: str) -> str:
+        """Deterministically derive the storage key for a finalized session."""
+
+        owner_segment = str(user_id) if user_id is not None else "guests"
+        return f"{owner_segment}/{session_id}.wav"
