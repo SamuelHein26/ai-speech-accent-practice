@@ -1,10 +1,9 @@
 """Database configuration and session utilities."""
 
 import os
-import socket
 import ssl
 from typing import Any, Dict
-from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -29,6 +28,32 @@ def _to_asyncpg_url(url: str) -> str:
     return url.replace("+psycopg2", "+asyncpg")
 
 
+def _resolve_ipv4_host(url: str) -> str:
+    """
+    Resolve hostname to IPv4 address to avoid IPv6 connectivity issues.
+    This is particularly important for Supabase connections in some hosting environments.
+    """
+    import socket
+    
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    
+    if not hostname or hostname.replace('.', '').isdigit():  # Already an IP
+        return url
+    
+    try:
+        # Get IPv4 address
+        ipv4_addr = socket.getaddrinfo(hostname, None, socket.AF_INET)[0][4][0]
+        
+        # Reconstruct URL with IP address
+        netloc = parsed.netloc.replace(hostname, ipv4_addr)
+        new_parsed = parsed._replace(netloc=netloc)
+        return urlunparse(new_parsed)
+    except (socket.gaierror, IndexError):
+        # If resolution fails, return original URL
+        return url
+
+
 DATABASE_URL = (
     os.getenv("SUPABASE_DB_URL")
     or os.getenv("DATABASE_URL")
@@ -39,35 +64,8 @@ if not DATABASE_URL:
         "None of SUPABASE_DB_URL, DATABASE_URL, or DATABASE_URL_SYNC are set"
     )
 
-
-def _ensure_ipv4_hostaddr(url: str) -> str:
-    """Append hostaddr=<ipv4> so libpq clients skip unreachable IPv6 records."""
-
-    parsed = urlparse(url)
-    hostname = parsed.hostname
-    if not hostname:
-        return url
-
-    existing_params = parse_qsl(parsed.query, keep_blank_values=True)
-    if any(key == "hostaddr" for key, _ in existing_params):
-        return url
-
-    port = parsed.port or 5432
-    try:
-        infos = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
-    except OSError:
-        return url
-
-    ipv4 = next((info[4][0] for info in infos if info[0] == socket.AF_INET), None)
-    if not ipv4:
-        return url
-
-    updated_params = existing_params + [("hostaddr", ipv4)]
-    new_query = urlencode(updated_params, doseq=True)
-    return urlunparse(parsed._replace(query=new_query))
-
-
-DATABASE_URL = _ensure_ipv4_hostaddr(DATABASE_URL)
+# Resolve to IPv4 to avoid IPv6 connectivity issues
+DATABASE_URL = _resolve_ipv4_host(DATABASE_URL)
 
 ASYNC_URL = _to_asyncpg_url(DATABASE_URL)
 
@@ -91,6 +89,9 @@ if enable_ssl:
     print("Database SSL: ENABLED")
 else:
     print("Database SSL: DISABLED (local development)")
+
+# Additional connect args for asyncpg to prefer IPv4
+connect_args["server_settings"] = {"jit": "off"}
 
 # Create async engine
 engine = create_async_engine(
