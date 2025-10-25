@@ -3,21 +3,15 @@ import subprocess
 import asyncio
 from typing import Optional
 from pathlib import Path
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, WebSocket
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
 from dotenv import load_dotenv
-from database import get_db
-from sqlalchemy.ext.asyncio import AsyncSession
+from routers import users, sessions, auth_router, streaming
 from services.session_manager import SessionManager
-from services.storage import SupabaseStorage, SupabaseStorageError
+from services.storage import SupabaseStorage
 from services.transcription_service import TranscriptionService
 from services.streaming_transcription_service import StreamingTranscriptionService
 from services.openai_service import OpenAIService
-from fastapi_utils.tasks import repeat_every
-from routers import users, sessions, auth_router, streaming
-from schemas import TopicRequest, TopicResponse
 
 # Load environment variables
 load_dotenv()
@@ -45,26 +39,17 @@ origins = configured_origins or default_origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,       # if you send cookies/auth headers
-    allow_methods=["*"],          # important for POST/OPTIONS
-    allow_headers=["*"],          # important for Authorization, Content-Type, etc.
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
 )
 
-
+# === Include Routers ===
 app.include_router(users.router)
 app.include_router(sessions.router)
 app.include_router(auth_router.router)
 app.include_router(streaming.router)
-
-# === Dependency Setup ===
-WORKDIR = Path("./live_sessions")
-WORKDIR.mkdir(parents=True, exist_ok=True)
-
-storage = SupabaseStorage()
-session_manager = SessionManager(WORKDIR, storage=storage)
-transcriber = TranscriptionService(os.getenv("ASSEMBLYAI_API_KEY"))
-openai_service = OpenAIService(os.getenv("OPENAI_API_KEY"))
-stream_service = StreamingTranscriptionService()
 
 @app.get("/")
 def health():
