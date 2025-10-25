@@ -18,7 +18,6 @@ load_dotenv()
 
 app = FastAPI()
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
 # === CORS Config ===
 default_origins = [
     "http://localhost:3000",
