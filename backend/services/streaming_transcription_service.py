@@ -11,9 +11,12 @@ from typing import Optional
 import aiohttp                    # WS client to AAI
 from fastapi import WebSocket     # WS server to browser
 from fastapi import WebSocketDisconnect
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Config: resolved at import time ---
-ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
+ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_STREAMING_API_KEY")
 
 # Universal Streaming v3 endpoint; match official sample querystring
 AAI_WS_ENDPOINT = (
