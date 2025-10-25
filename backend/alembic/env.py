@@ -31,19 +31,19 @@ load_dotenv()
 
 # --- choose sync DB URL for Alembic ---
 database_url = (
-    os.getenv("SUPABASE_DB_URL")
-    or os.getenv("DATABASE_URL")
+    os.getenv("DATABASE_URL")
     or os.getenv("DATABASE_URL_SYNC")
+    or os.getenv("RENDER_DATABASE_URL")
 )
 if not database_url:
     raise RuntimeError(
-        "None of SUPABASE_DB_URL, DATABASE_URL, or DATABASE_URL_SYNC are set"
+        "None of DATABASE_URL, DATABASE_URL_SYNC, or RENDER_DATABASE_URL are set"
     )
 
 # Alembic expects a synchronous driver; swap if an async URL is provided.
 sync_url = database_url.replace("+asyncpg", "+psycopg2")
 
-# Older env vars might use the Supabase `ssl=require` query param.
+# Older env vars might use the Render `ssl=require` query param.
 sync_url = sync_url.replace("ssl=require", "sslmode=require")
 
 
