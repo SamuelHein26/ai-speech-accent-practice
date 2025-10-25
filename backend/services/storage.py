@@ -1,126 +1,141 @@
-"""Utility helpers for interacting with Supabase Storage."""
+"""Storage service for S3-compatible storage."""
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
 from typing import Optional
+from pathlib import Path
 
-import httpx
+import boto3
+from botocore.exceptions import ClientError, BotoCoreError
 
 
-class SupabaseStorageError(RuntimeError):
+class StorageError(RuntimeError):
     """Raised when storage operations fail or storage is not configured."""
 
 
 @dataclass
-class SupabaseStorageConfig:
-    url: Optional[str]
-    key: Optional[str]
+class S3StorageConfig:
     bucket: Optional[str]
+    region: Optional[str]
+    access_key: Optional[str]
+    secret_key: Optional[str]
     prefix: str
+    # Optional: if you want to use a custom endpoint (like MinIO, DigitalOcean Spaces, etc.)
+    endpoint_url: Optional[str] = None
 
     @classmethod
-    def from_env(cls) -> "SupabaseStorageConfig":
-        prefix = os.getenv("SUPABASE_STORAGE_PREFIX", "").strip()
-        # Normalise prefix so that downstream joins are predictable.
+    def from_env(cls) -> "S3StorageConfig":
+        prefix = os.getenv("S3_STORAGE_PREFIX", "recordings").strip()
+        # Normalize prefix so that downstream joins are predictable.
         if prefix.endswith("/"):
             prefix = prefix[:-1]
+        
         return cls(
-            url=os.getenv("SUPABASE_URL"),
-            key=(
-                os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-                or os.getenv("SUPABASE_SERVICE_KEY")
-                or os.getenv("SUPABASE_ANON_KEY")
-            ),
-            bucket=os.getenv("SUPABASE_STORAGE_BUCKET"),
+            bucket=os.getenv("S3_BUCKET_NAME"),
+            region=os.getenv("S3_REGION", "us-east-1"),
+            access_key=os.getenv("AWS_ACCESS_KEY_ID"),
+            secret_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
             prefix=prefix,
+            endpoint_url=os.getenv("S3_ENDPOINT_URL"),  # For S3-compatible services
         )
 
     def is_configured(self) -> bool:
-        return bool(self.url and self.key and self.bucket)
+        return bool(self.bucket and self.access_key and self.secret_key)
 
 
-class SupabaseStorage:
-    """Thin async wrapper around the Supabase Storage HTTP API."""
+class S3Storage:
+    """Async wrapper around boto3 S3 operations."""
 
-    def __init__(self, config: Optional[SupabaseStorageConfig] = None):
-        self.config = config or SupabaseStorageConfig.from_env()
-        self._timeout = httpx.Timeout(30.0)
+    def __init__(self, config: Optional[S3StorageConfig] = None):
+        self.config = config or S3StorageConfig.from_env()
+        self._client = None
 
-    # Public helpers -----------------------------------------------------------------
+    def _get_client(self):
+        """Lazy initialization of S3 client."""
+        if self._client is None:
+            if not self.is_configured():
+                raise StorageError("S3 storage is not configured")
+            
+            self._client = boto3.client(
+                's3',
+                aws_access_key_id=self.config.access_key,
+                aws_secret_access_key=self.config.secret_key,
+                region_name=self.config.region,
+                endpoint_url=self.config.endpoint_url,  # None for standard AWS S3
+            )
+        return self._client
+
     def is_configured(self) -> bool:
         return self.config.is_configured()
 
     async def upload_audio(self, object_key: str, file_path: str) -> str:
         """
-        Upload ``file_path`` to Supabase Storage and return the stored key.
-
-        ``object_key`` should be a relative key (no leading slash). The optional
-        ``SUPABASE_STORAGE_PREFIX`` is automatically prepended if provided.
+        Upload file_path to S3 and return the stored key.
+        
+        object_key should be a relative key (no leading slash). The optional
+        S3_STORAGE_PREFIX is automatically prepended if provided.
         """
-
         if not self.is_configured():
-            raise SupabaseStorageError("Supabase storage is not configured")
+            raise StorageError("S3 storage is not configured")
 
         final_key = self._apply_prefix(object_key)
-        target_url = self._object_url(final_key)
+        client = self._get_client()
 
-        headers = {
-            "Authorization": f"Bearer {self.config.key}",
-            "Apikey": self.config.key or "",
-            "Content-Type": "audio/wav",
-            "x-upsert": "true",
-        }
-
-        # We read the file into memory because uploads happen after recording
-        # completes and typical files are small (<10MB). This keeps the API
-        # surface simple; revisit if recordings become significantly larger.
-        with open(file_path, "rb") as fh:
-            data = fh.read()
-
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(target_url, content=data, headers=headers)
-
-        if response.is_error:
-            raise SupabaseStorageError(
-                f"Upload failed with status {response.status_code}: {response.text}"
+        try:
+            # Upload with appropriate metadata
+            client.upload_file(
+                file_path,
+                self.config.bucket,
+                final_key,
+                ExtraArgs={
+                    'ContentType': 'audio/wav',
+                    'ACL': 'private',  # Keep files private, use presigned URLs
+                }
             )
-
-        return final_key
+            return final_key
+        except (ClientError, BotoCoreError) as e:
+            raise StorageError(f"S3 upload failed: {str(e)}")
 
     async def download_audio(self, stored_key: str) -> bytes:
-        """Fetch and return the raw audio bytes for ``stored_key``."""
-
+        """Fetch and return the raw audio bytes for stored_key."""
         if not self.is_configured():
-            raise SupabaseStorageError("Supabase storage is not configured")
+            raise StorageError("S3 storage is not configured")
 
-        target_url = self._object_url(stored_key)
-        headers = {
-            "Authorization": f"Bearer {self.config.key}",
-            "Apikey": self.config.key or "",
-        }
+        client = self._get_client()
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.get(target_url, headers=headers)
-
-        if response.is_error:
-            raise SupabaseStorageError(
-                f"Download failed with status {response.status_code}: {response.text}"
+        try:
+            response = client.get_object(
+                Bucket=self.config.bucket,
+                Key=stored_key
             )
+            return response['Body'].read()
+        except (ClientError, BotoCoreError) as e:
+            raise StorageError(f"S3 download failed: {str(e)}")
 
-        return response.content
+    def generate_presigned_url(self, stored_key: str, expiration: int = 3600) -> str:
+        if not self.is_configured():
+            raise StorageError("S3 storage is not configured")
 
-    # Internal helpers ---------------------------------------------------------------
+        client = self._get_client()
+
+        try:
+            url = client.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': self.config.bucket,
+                    'Key': stored_key
+                },
+                ExpiresIn=expiration
+            )
+            return url
+        except (ClientError, BotoCoreError) as e:
+            raise StorageError(f"Failed to generate presigned URL: {str(e)}")
+
     def _apply_prefix(self, object_key: str) -> str:
+        """Apply the configured prefix to the object key."""
         key = object_key.lstrip("/")
         if not self.config.prefix:
             return key
         return f"{self.config.prefix}/{key}"
-
-    def _object_url(self, object_key: str) -> str:
-        if not self.config.url or not self.config.bucket:
-            raise SupabaseStorageError("Supabase storage is not configured")
-        key = object_key.lstrip("/")
-        return f"{self.config.url}/storage/v1/object/{self.config.bucket}/{key}"
-

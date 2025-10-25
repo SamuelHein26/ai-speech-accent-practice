@@ -11,13 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Session
-from services.storage import SupabaseStorage, SupabaseStorageError
+from services.storage import S3Storage, StorageError
 
 
 class SessionManager:
     """Handles creation, storage paths, and finalize semantics."""
 
-    def __init__(self, workdir: Path, storage: SupabaseStorage | None = None):
+    def __init__(self, workdir: Path, storage: S3Storage | None = None):
         # Ephemeral workspace for in-progress recordings (per-session dir)
         self.workdir = Path(workdir)
         self.workdir.mkdir(parents=True, exist_ok=True)
