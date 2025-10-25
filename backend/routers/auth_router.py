@@ -25,7 +25,10 @@ async def login(
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me")
-async def get_me(current_user: User = Depends(get_current_user)):
+async def get_me(current_user: User | None = Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
     return {
         "username": current_user.username,
         "email": current_user.email
