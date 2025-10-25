@@ -168,13 +168,15 @@ async def get_session_audio(
     if not session.audio_path:
         raise HTTPException(status_code=404, detail="Audio file unavailable")
 
+    # Download from S3 and stream through backend (no S3 CORS needed)
     if storage.is_configured():
         try:
             audio_bytes = await storage.download_audio(session.audio_path)
-        except SupabaseStorageError as exc:
+            audio_stream = BytesIO(audio_bytes)
+        except StorageError as exc:
             raise HTTPException(status_code=502, detail=str(exc))
-        audio_stream = BytesIO(audio_bytes)
     else:
+        # Local fallback
         file_path = Path(session.audio_path)
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="Audio file unavailable")
