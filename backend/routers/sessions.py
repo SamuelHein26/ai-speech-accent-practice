@@ -5,7 +5,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,7 +107,7 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
             wav_path=wav_path,
             duration_seconds=duration_seconds,
         )
-    except SupabaseStorageError as exc:
+    except StorageError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
     return {"final": transcript}
@@ -190,3 +190,39 @@ async def get_session_audio(
             "Content-Disposition": f"inline; filename={session.session_id}.wav",
         },
     )
+
+
+@router.delete("/{session_id}", status_code=204)
+async def delete_session_recording(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    stmt = select(Session).where(Session.session_id == session_id)
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+
+    if not session or session.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    if session.audio_path:
+        if storage.is_configured():
+            try:
+                await storage.delete_audio(session.audio_path)
+            except StorageError as exc:
+                raise HTTPException(status_code=502, detail=str(exc))
+        else:
+            file_path = Path(session.audio_path)
+            if file_path.exists():
+                try:
+                    file_path.unlink()
+                except OSError as exc:
+                    raise HTTPException(status_code=500, detail=f"Failed to delete audio file: {exc}")
+
+    await db.delete(session)
+    await db.commit()
+
+    return Response(status_code=204)
