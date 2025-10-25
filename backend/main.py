@@ -1,6 +1,7 @@
 import os
 import subprocess
 import asyncio
+from typing import Optional
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,13 +24,23 @@ load_dotenv()
 
 app = FastAPI()
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
 # === CORS Config ===
-origins = [
+default_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://ai-speech-accent-practice.vercel.app",
 ]
+
+configured_origins = os.getenv("CORS_ORIGINS", "").split(",")
+configured_origins = [origin.strip() for origin in configured_origins if origin.strip()]
+
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url:
+    configured_origins.append(frontend_url.strip())
+
+origins = configured_origins or default_origins
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -68,7 +79,7 @@ async def websocket_stream(ws: WebSocket):
 # === Start Session ===
 @app.post("/session/start")
 async def start_session(
-    token: str = Depends(oauth2_scheme),
+    token: Optional[str] = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
 
@@ -76,18 +87,21 @@ async def start_session(
     is_guest = False
 
     # Try to decode JWT (optional)
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email = payload.get("sub")
-        if email:
-            stmt = select(User).where(User.email == email)
-            result = await db.execute(stmt)
-            user = result.scalar_one_or_none()
-            if user:
-                user_id = user.id
-    except JWTError:
-        is_guest = True
-    except Exception:
+    if token:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            email = payload.get("sub")
+            if email:
+                stmt = select(User).where(User.email == email)
+                result = await db.execute(stmt)
+                user = result.scalar_one_or_none()
+                if user:
+                    user_id = user.id
+        except JWTError:
+            is_guest = True
+        except Exception:
+            is_guest = True
+    else:
         is_guest = True
 
     # Fallback to guest if user not found or token invalid
