@@ -25,11 +25,21 @@ app = FastAPI()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 # === CORS Config ===
-origins = [
+default_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://ai-speech-accent-practice.vercel.app",
 ]
+
+configured_origins = os.getenv("CORS_ORIGINS", "").split(",")
+configured_origins = [origin.strip() for origin in configured_origins if origin.strip()]
+
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url:
+    configured_origins.append(frontend_url.strip())
+
+origins = configured_origins or default_origins
+
 
 app.add_middleware(
     CORSMiddleware,

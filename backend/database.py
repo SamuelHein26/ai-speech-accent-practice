@@ -29,22 +29,20 @@ def _to_asyncpg_url(url: str) -> str:
 
 
 def _resolve_ipv4_host(url: str) -> str:
-    """
-    Resolve hostname to IPv4 address to avoid IPv6 connectivity issues.
-    This is particularly important for Supabase connections in some hosting environments.
-    """
+    """Resolve hostnames to IPv4 addresses to avoid IPv6 connectivity issues."""
+
     import socket
-    
+
     parsed = urlparse(url)
     hostname = parsed.hostname
-    
+
     if not hostname or hostname.replace('.', '').isdigit():  # Already an IP
         return url
-    
+
     try:
         # Get IPv4 address
         ipv4_addr = socket.getaddrinfo(hostname, None, socket.AF_INET)[0][4][0]
-        
+
         # Reconstruct URL with IP address
         netloc = parsed.netloc.replace(hostname, ipv4_addr)
         new_parsed = parsed._replace(netloc=netloc)
@@ -55,16 +53,16 @@ def _resolve_ipv4_host(url: str) -> str:
 
 
 DATABASE_URL = (
-    os.getenv("SUPABASE_DB_URL")
-    or os.getenv("DATABASE_URL")
+    os.getenv("DATABASE_URL")
     or os.getenv("DATABASE_URL_SYNC")
+    or os.getenv("RENDER_DATABASE_URL")
 )
 if not DATABASE_URL:
     raise ValueError(
-        "None of SUPABASE_DB_URL, DATABASE_URL, or DATABASE_URL_SYNC are set"
+        "None of DATABASE_URL, DATABASE_URL_SYNC, or RENDER_DATABASE_URL are set"
     )
 
-# Resolve to IPv4 to avoid IPv6 connectivity issues
+# Resolve to IPv4 to avoid IPv6 connectivity issues with some Render instances
 DATABASE_URL = _resolve_ipv4_host(DATABASE_URL)
 
 ASYNC_URL = _to_asyncpg_url(DATABASE_URL)
