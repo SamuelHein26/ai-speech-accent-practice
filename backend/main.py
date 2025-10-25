@@ -33,12 +33,13 @@ origins = configured_origins or default_origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,       # if you send cookies/auth headers
-    allow_methods=["*"],          # important for POST/OPTIONS
-    allow_headers=["*"],          # important for Authorization, Content-Type, etc.
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
 )
 
-
+# === Include Routers ===
 app.include_router(users.router)
 app.include_router(sessions.router)
 app.include_router(auth_router.router)

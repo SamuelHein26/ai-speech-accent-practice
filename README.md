@@ -40,17 +40,15 @@ Vercel preview defaults.
 
 ### Audio retention
 
-Finalised recordings are uploaded to Supabase Storage. The `audio_path` column
-now stores the object key for each audio file rather than the binary payload.
+The backend enables cross-origin requests for local development URLs by
+default. In production set the frontend domain explicitly so browsers can reach
+the Render API without CORS errors:
 
-Configure the following environment variables for production deployments:
+* `CORS_ORIGINS` &mdash; comma-separated list of allowed origins (for example
+  `https://ai-speech-accent-practice.vercel.app`).
+* `FRONTEND_URL` &mdash; optional single origin that is appended to the list. This
+  is useful when the same value is already configured for other services.
 
-* `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SERVICE_KEY`) &mdash; used to upload and
-  fetch audio from Supabase Storage.
-* `SUPABASE_STORAGE_BUCKET` &mdash; the bucket that will contain the recordings.
-* `SUPABASE_STORAGE_PREFIX` (optional) &mdash; folder prefix inside the bucket (for
-  example `recordings/monologues`).
+When neither variable is set, the API falls back to the built-in localhost and
+Vercel preview defaults.
 
-During local development you can omit the Supabase variables. In that case the
-API falls back to moving WAV files into `backend/recordings/` and continues to
-serve them from disk.
