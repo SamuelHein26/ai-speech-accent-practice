@@ -1,6 +1,3 @@
-// app/components/loginModal.tsx
-// Purpose: fix unused var warning, avoid `any` in catch
-
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -11,7 +8,6 @@ interface LoginModalProps {
 }
 
 export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
-  // State: local form state + UX flags
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -22,7 +18,6 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   if (!isOpen) return null;
 
   const handleLogin = async (ev: React.FormEvent<HTMLFormElement>) => {
-    // Type: precise event type for React form submit
     ev.preventDefault();
     setError("");
     setLoading(true);
@@ -38,14 +33,20 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
         body: formData.toString(),
       });
 
-      if (!res.ok) throw new Error("Invalid credentials");
+      if (res.status === 401) {
+        throw new Error("Session expired. Please log in again.");
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Invalid credentials");
+      }
 
       const data: { access_token: string } = await res.json();
       localStorage.setItem("token", data.access_token);
       window.dispatchEvent(new Event("authChange"));
       onClose();
     } catch (e: unknown) {
-      // Narrow unknown → Error to satisfy no-explicit-any
       const msg = e instanceof Error ? e.message : "Login failed. Please try again.";
       setError(msg);
     } finally {
