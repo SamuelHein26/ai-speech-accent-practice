@@ -4,15 +4,15 @@ This platform is an AI powered speech and accent practicing web-based platform.
 
 ### Database configuration
 
-The backend now expects a Supabase Postgres connection string. Provide one of the
+The backend expects the Render PostgreSQL connection string. Provide one of the
 following environment variables when starting the FastAPI service:
 
-* `SUPABASE_DB_URL` &mdash; preferred. Use the full connection string from the Supabase dashboard (Service Role works best) and be sure it includes `sslmode=require`.
-* `DATABASE_URL` &mdash; legacy fallback. If `SUPABASE_DB_URL` is absent we will read this variable instead.
+* `DATABASE_URL` &mdash; default Render variable. Ensure it includes `sslmode=require`.
 * `DATABASE_URL_SYNC` &mdash; optional override for environments where only a synchronous DSN is available during migrations.
+* `RENDER_DATABASE_URL` &mdash; legacy fallback supported for backwards compatibility.
 
 For production deployments leave `DATABASE_SSL` unset (or set it to `true`). This
-allows the app to create a TLS context for Supabase automatically. In local
+allows the app to create a TLS context for Render automatically. In local
 development you can omit both `DATABASE_SSL` and `sslmode` parameters to keep
 plain connections against Docker/Postgres.
 
