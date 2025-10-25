@@ -24,6 +24,20 @@ cd backend
 alembic upgrade head
 ```
 
+### Frontend origins / CORS
+
+The backend enables cross-origin requests for local development URLs by
+default. In production set the frontend domain explicitly so browsers can reach
+the Render API without CORS errors:
+
+* `CORS_ORIGINS` &mdash; comma-separated list of allowed origins (for example
+  `https://ai-speech-accent-practice.vercel.app`).
+* `FRONTEND_URL` &mdash; optional single origin that is appended to the list. This
+  is useful when the same value is already configured for other services.
+
+When neither variable is set, the API falls back to the built-in localhost and
+Vercel preview defaults.
+
 ### Audio retention
 
 Finalised recordings are uploaded to Supabase Storage. The `audio_path` column
