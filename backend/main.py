@@ -28,7 +28,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://ai-speech-accent-practice.vercel.app",   # your Vercel domain
+    "https://ai-speech-accent-practice.vercel.app",
 ]
 
 app.add_middleware(
