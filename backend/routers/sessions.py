@@ -16,14 +16,14 @@ from models import Session, User
 from schemas import SessionSummary
 from services.auth import get_current_user
 from services.session_manager import SessionManager
-from services.storage import SupabaseStorage, SupabaseStorageError
+from services.storage import S3Storage, StorageError
 from services.transcription_service import TranscriptionService
 
 load_dotenv()
 
 router = APIRouter(prefix="/session", tags=["Sessions"])
 
-storage = SupabaseStorage()
+storage = S3Storage()
 session_manager = SessionManager(Path("./live_sessions"), storage=storage)
 transcriber = TranscriptionService(os.getenv("ASSEMBLYAI_API_KEY"))
 
