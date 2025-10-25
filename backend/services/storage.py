@@ -133,6 +133,21 @@ class S3Storage:
         except (ClientError, BotoCoreError) as e:
             raise StorageError(f"Failed to generate presigned URL: {str(e)}")
 
+    async def delete_audio(self, stored_key: str) -> None:
+        """Delete the object identified by stored_key from storage."""
+        if not self.is_configured():
+            raise StorageError("S3 storage is not configured")
+
+        client = self._get_client()
+
+        try:
+            client.delete_object(
+                Bucket=self.config.bucket,
+                Key=stored_key,
+            )
+        except (ClientError, BotoCoreError) as e:
+            raise StorageError(f"Failed to delete stored audio: {str(e)}")
+
     def _apply_prefix(self, object_key: str) -> str:
         """Apply the configured prefix to the object key."""
         key = object_key.lstrip("/")

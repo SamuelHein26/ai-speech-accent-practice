@@ -103,7 +103,7 @@ class SessionManager:
                 row.audio_path = str(destination)
 
             await db.commit()
-        except SupabaseStorageError:
+        except StorageError:
             await db.rollback()
             raise
         except Exception:
