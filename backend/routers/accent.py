@@ -60,12 +60,7 @@ def _pick_extension(file: UploadFile) -> str:
 
 
 def _coerce_user_id(value: str | None) -> Optional[uuid.UUID]:
-    """
-    Convert inbound userId (string from form) into UUID or None.
-    IMPORTANT:
-    - Your original version tried to cast to int. I'm assuming here users are UUIDs in DB.
-    - If you're truly using int PKs, swap this logic back to int.
-    """
+
     if not value:
         return None
     try:
@@ -77,22 +72,13 @@ def _coerce_user_id(value: str | None) -> Optional[uuid.UUID]:
 @router.post("/train", response_model=AccentTrainingResponse)
 async def train_accent(
     # Form(...) means this works with multipart/form-data along with the UploadFile.
-    text: str = Form(...),                 # reference paragraph/sentence they were SUPPOSED to read
-    accent: str = Form(...),               # "american" | "british"
-    userId: str | None = Form(None),       # caller's user id (optional MVP)
-    audio: UploadFile = File(...),         # recorded speech audio blob
-    db: AsyncSession = Depends(get_db),    # Async DB session (SQLAlchemy 2.x async)
+    text: str = Form(...),               
+    accent: str = Form(...),               
+    userId: str | None = Form(None),       
+    audio: UploadFile = File(...),         
+    db: AsyncSession = Depends(get_db),    
 ):
-    """
-    Accent training entrypoint.
-    1. Store audio in S3.
-    2. Transcribe audio (word-level with confidence).
-    3. Evaluate pronunciation vs expected text for chosen accent.
-    4. Persist attempt row.
-    5. Return structured feedback for UI (red underlines, tips).
-    """
 
-    # === 1. Read bytes from upload and push to S3 (I/O-bound) ==================
     audio_bytes = await audio.read()  # await OK here (UploadFile.read is async)
 
     if not audio_bytes:

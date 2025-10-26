@@ -109,9 +109,6 @@ export default function Header() {
         <Link href="/about" className={`${getActiveClass("/about")} font-medium transition pb-1`}>
           About
         </Link>
-        <Link href="/help" className={`${getActiveClass("/help")} font-medium transition pb-1`}>
-          Help
-        </Link>
       </nav>
 
       {/* Right Section */}
@@ -136,12 +133,6 @@ export default function Header() {
                   className="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-red-50 dark:hover:bg-gray-700 transition"
                 >
                   View Profile
-                </button>
-                <button
-                  onClick={() => router.push("/dashboard")}
-                  className="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-red-50 dark:hover:bg-gray-700 transition"
-                >
-                  Dashboard
                 </button>
                 <button
                   onClick={handleLogout}
@@ -187,7 +178,7 @@ export default function Header() {
       {/* Mobile Dropdown */}
       {isMenuOpen && (
         <div className="absolute top-16 left-0 w-full bg-white dark:bg-gray-900 shadow-md flex flex-col items-center space-y-4 py-6 md:hidden z-50">
-          {["/monologue", "/accent", "/about", "/help"].map((path) => (
+          {["/monologue", "/accent", "/about"].map((path) => (
             <Link
               key={path}
               href={path}
@@ -202,9 +193,7 @@ export default function Header() {
                 ? "Monologue"
                 : path === "/accent"
                 ? "Accent Training"
-                : path === "/about"
-                ? "About"
-                : "Help"}
+                : "About"}
             </Link>
           ))}
         </div>

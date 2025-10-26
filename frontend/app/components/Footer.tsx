@@ -11,12 +11,6 @@ export default function Footer() {
             About
           </a>
           <a
-            href="/help"
-            className="hover:text-red-600 dark:hover:text-red-400 transition"
-          >
-            Help
-          </a>
-          <a
             href="/privacy"
             className="hover:text-red-600 dark:hover:text-red-400 transition"
           >
