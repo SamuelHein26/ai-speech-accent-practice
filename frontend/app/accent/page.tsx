@@ -3,6 +3,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import Header from "../components/Header";
+import practicePhrasesData from "./practice-phrases.json";
+
+const FALLBACK_PHRASE =
+  "The weather today is perfect for a calming walk by the river, so breathe deeply and feel the rhythm of your words.";
+
+const PRACTICE_PHRASES = (Array.isArray(practicePhrasesData)
+  ? (practicePhrasesData as unknown[])
+  : []
+).filter((phrase): phrase is string => typeof phrase === "string" && phrase.trim().length > 0);
+
+function pickRandomPhrase(exclude?: string): string {
+  if (PRACTICE_PHRASES.length === 0) {
+    return FALLBACK_PHRASE;
+  }
+
+  if (PRACTICE_PHRASES.length === 1) {
+    return PRACTICE_PHRASES[0];
+  }
+
+  let candidate: string | undefined;
+
+  do {
+    const index = Math.floor(Math.random() * PRACTICE_PHRASES.length);
+    candidate = PRACTICE_PHRASES[index];
+  } while (!candidate || candidate === exclude);
+
+  return candidate;
+}
 
 const API_BASE =
   (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_BASE_URL) ||
@@ -24,17 +52,17 @@ type AccentTrainingResponse = {
   transcript: string;
 };
 
-const PRACTICE_PARAGRAPH =
-  "The weather today is perfect for a calming walk by the river, so breathe deeply and feel the rhythm of your words.";
-
 export default function AccentPage() {
   const [selectedAccent, setSelectedAccent] = useState<AccentOption>("american");
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AccentTrainingResponse | null>(null);
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [currentPhrase, setCurrentPhrase] = useState(() => pickRandomPhrase());
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const playbackUrlRef = useRef<string | null>(null);
 
   const isBusy = useMemo(() => isRecording || isUploading, [isRecording, isUploading]);
 
@@ -43,6 +71,63 @@ export default function AccentPage() {
       recorderRef.current?.stream?.getTracks().forEach((track) => track.stop());
     };
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (playbackUrlRef.current) {
+        URL.revokeObjectURL(playbackUrlRef.current);
+        playbackUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  const uploadRecording = useCallback(
+    async (blob: Blob) => {
+      setIsUploading(true);
+      setError(null);
+
+      if (playbackUrlRef.current) {
+        URL.revokeObjectURL(playbackUrlRef.current);
+      }
+      const objectUrl = URL.createObjectURL(blob);
+      playbackUrlRef.current = objectUrl;
+      setPlaybackUrl(objectUrl);
+
+      const formData = new FormData();
+      formData.append("audio", blob, "accent-practice.webm");
+      formData.append("text", currentPhrase);
+      formData.append("accent", selectedAccent);
+
+      const headers: Record<string, string> = {};
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/accent/train`, {
+          method: "POST",
+          headers,
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const detail = (await response.json().catch(() => ({}))) as { detail?: string };
+          throw new Error(detail.detail || "Accent analysis failed.");
+        }
+
+        const data = (await response.json()) as AccentTrainingResponse;
+        setResult(data);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unable to analyse recording.";
+        setError(message);
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [currentPhrase, selectedAccent]
+  );
 
   const startRecording = useCallback(async () => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -72,50 +157,17 @@ export default function AccentPage() {
       recorderRef.current = recorder;
       setIsRecording(true);
       setError(null);
+      setResult(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to access microphone.";
       setError(message);
     }
-  }, []);
+  }, [uploadRecording]);
 
   const stopRecording = useCallback(() => {
     recorderRef.current?.stop();
     setIsRecording(false);
   }, []);
-
-  const uploadRecording = useCallback(
-    async (blob: Blob) => {
-      setIsUploading(true);
-      setError(null);
-
-      const formData = new FormData();
-      formData.append("audio", blob, "accent-practice.webm");
-      formData.append("text", PRACTICE_PARAGRAPH);
-      formData.append("accent", selectedAccent);
-      formData.append("userId", "0");
-
-      try {
-        const response = await fetch(`${API_BASE}/accent/train`, {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const detail = (await response.json().catch(() => ({}))) as { detail?: string };
-          throw new Error(detail.detail || "Accent analysis failed.");
-        }
-
-        const data = (await response.json()) as AccentTrainingResponse;
-        setResult(data);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Unable to analyse recording.";
-        setError(message);
-      } finally {
-        setIsUploading(false);
-      }
-    },
-    [selectedAccent]
-  );
 
   const toggleRecording = useCallback(() => {
     if (isRecording) {
@@ -170,11 +222,30 @@ export default function AccentPage() {
             </div>
 
             <div className="space-y-4">
-              <p className="text-sm font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
-                Read this aloud
-              </p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                  Read this aloud
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentPhrase((prev) => pickRandomPhrase(prev));
+                    setResult(null);
+                    setError(null);
+                    if (playbackUrlRef.current) {
+                      URL.revokeObjectURL(playbackUrlRef.current);
+                      playbackUrlRef.current = null;
+                    }
+                    setPlaybackUrl(null);
+                  }}
+                  disabled={isBusy}
+                  className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:border-red-200 hover:text-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-red-400 dark:hover:text-red-300"
+                >
+                  Refresh phrase
+                </button>
+              </div>
               <div className="rounded-2xl border border-dashed border-red-200 dark:border-gray-700 bg-red-50/40 dark:bg-gray-800/60 p-6">
-                <ParagraphFeedback feedback={result?.words} fallbackText={PRACTICE_PARAGRAPH} />
+                <ParagraphFeedback feedback={result?.words} fallbackText={currentPhrase} />
               </div>
             </div>
 
@@ -224,11 +295,23 @@ export default function AccentPage() {
                   <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
                     Coach&apos;s tip
                   </p>
-                  <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{result.tips}</p>
-                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{result.tips}</p>
               </div>
-            )}
-          </section>
+            </div>
+          )}
+
+          {playbackUrl && (
+            <div className="space-y-3 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800/70 p-6">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Listen back</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Replay your latest take to hear improvements and spot words that still feel tricky.
+              </p>
+              <audio controls src={playbackUrl} className="w-full">
+                Your browser does not support audio playback.
+              </audio>
+            </div>
+          )}
+        </section>
 
           <footer className="text-center text-xs text-gray-500 dark:text-gray-400">
             {isBusy

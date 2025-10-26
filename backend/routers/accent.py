@@ -5,15 +5,18 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from io import BytesIO
+from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db                      # DI: returns AsyncSession
 from models import PracticeAttempt, User        # ORM models (SQLAlchemy async)
-from schemas import AccentTrainingResponse      # Pydantic response schema
+from schemas import AccentAttemptSummary, AccentTrainingResponse
 from services.accent_engine import (           # biz logic: scoring / tips
     RecognisedWord,
     build_tip,
@@ -25,6 +28,7 @@ from services.accent_transcriber import (      # ASR wrapper
 )
 from services.s3_audio_storage import S3AudioStorage  # S3 PUT + key gen
 from services.storage import StorageError
+from services.auth import get_current_user
 
 
 router = APIRouter(prefix="/accent", tags=["accent"])
@@ -60,12 +64,25 @@ def _pick_extension(file: UploadFile) -> str:
     return ".webm"
 
 
-def _coerce_user_id(value: str | None) -> Optional[uuid.UUID]:
+def _media_type_from_path(path: str) -> str:
+    lowered = path.lower()
+    if lowered.endswith(".wav"):
+        return "audio/wav"
+    if lowered.endswith(".mp3"):
+        return "audio/mpeg"
+    if lowered.endswith(".ogg") or lowered.endswith(".oga"):
+        return "audio/ogg"
+    if lowered.endswith(".m4a") or lowered.endswith(".mp4"):
+        return "audio/mp4"
+    return "audio/webm"
+
+
+def _coerce_user_id(value: str | None) -> Optional[int]:
 
     if not value:
         return None
     try:
-        return uuid.UUID(value)
+        return int(value)
     except (ValueError, TypeError):
         return None
 
@@ -73,11 +90,12 @@ def _coerce_user_id(value: str | None) -> Optional[uuid.UUID]:
 @router.post("/train", response_model=AccentTrainingResponse)
 async def train_accent(
     # Form(...) means this works with multipart/form-data along with the UploadFile.
-    text: str = Form(...),               
-    accent: str = Form(...),               
-    userId: str | None = Form(None),       
-    audio: UploadFile = File(...),         
-    db: AsyncSession = Depends(get_db),    
+    text: str = Form(...),
+    accent: str = Form(...),
+    userId: str | None = Form(None),
+    audio: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
 ):
 
     audio_bytes = await audio.read()  # await OK here (UploadFile.read is async)
@@ -88,12 +106,11 @@ async def train_accent(
     # pick extension for storage key
     ext = _pick_extension(audio)
     attempt_uuid = uuid.uuid4()
-    object_key = f"recordings/{attempt_uuid}{ext}"
+    object_key = f"{attempt_uuid}{ext}"
 
     # upload audio to storage (S3 or local fallback) without blocking the event loop.
     try:
-        stored_audio_path = await asyncio.to_thread(
-            storage.put_object_bytes,
+        stored_audio_path = await storage.store_bytes(
             object_key,
             audio_bytes,
             content_type=audio.content_type or "application/octet-stream",
@@ -140,12 +157,15 @@ async def train_accent(
     # "Try pronouncing the R in 'weather' for American English."
     tips = build_tip(feedback_items, accent)
 
-    # === 4. Resolve userId -> DB user (optional MVP auth binding) ==============
-    db_user_id: uuid.UUID | None = None
-    requested_id = _coerce_user_id(userId)
-    if requested_id is not None:
-        result = await db.execute(select(User.id).where(User.id == requested_id))
-        db_user_id = result.scalar_one_or_none()
+    # === 4. Resolve authenticated user (with legacy fallback) =================
+    db_user_id: Optional[int] = None
+    if current_user is not None:
+        db_user_id = current_user.id
+    else:
+        requested_id = _coerce_user_id(userId)
+        if requested_id is not None:
+            result = await db.execute(select(User.id).where(User.id == requested_id))
+            db_user_id = result.scalar_one_or_none()
 
     # === 5. Persist attempt row ===============================================
     attempt = PracticeAttempt(
@@ -169,4 +189,85 @@ async def train_accent(
         words=[item.to_response() for item in feedback_items],
         tips=tips,
         transcript=transcript_text,
+    )
+
+
+@router.get("/history", response_model=list[AccentAttemptSummary])
+async def accent_history(
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    stmt = (
+        select(
+            PracticeAttempt.attempt_id,
+            PracticeAttempt.created_at,
+            PracticeAttempt.accent_target,
+            PracticeAttempt.overall_score,
+            PracticeAttempt.transcript_raw,
+            PracticeAttempt.audio_path,
+        )
+        .where(PracticeAttempt.user_id == current_user.id)
+        .order_by(PracticeAttempt.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    summaries: list[AccentAttemptSummary] = []
+    for row in rows:
+        score_value = None
+        if row.overall_score is not None:
+            score_value = float(row.overall_score)
+
+        summaries.append(
+            AccentAttemptSummary(
+                attempt_id=str(row.attempt_id),
+                created_at=row.created_at,
+                accent_target=row.accent_target,
+                score=score_value,
+                transcript=row.transcript_raw,
+                audio_available=bool(row.audio_path),
+            )
+        )
+
+    return summaries
+
+
+@router.get("/{attempt_id}/audio")
+async def accent_audio(
+    attempt_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    stmt = select(PracticeAttempt).where(PracticeAttempt.attempt_id == attempt_id)
+    result = await db.execute(stmt)
+    attempt = result.scalar_one_or_none()
+
+    if not attempt or attempt.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    if not attempt.audio_path:
+        raise HTTPException(status_code=404, detail="Audio file unavailable")
+
+    try:
+        audio_bytes = await storage.download_audio(attempt.audio_path)
+    except StorageError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    media_type = _media_type_from_path(attempt.audio_path)
+    suffix = Path(attempt.audio_path).suffix or ".webm"
+    filename = f"{attempt.attempt_id}{suffix}"
+
+    return StreamingResponse(
+        BytesIO(audio_bytes),
+        media_type=media_type,
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": f"inline; filename={filename}",
+        },
     )

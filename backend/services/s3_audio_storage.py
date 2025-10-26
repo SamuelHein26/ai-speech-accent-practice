@@ -75,6 +75,21 @@ class S3AudioStorage:
         # Local development fallback
         return self._write_local(object_key, data)
 
+    async def download_audio(self, stored_key: str) -> bytes:
+        """Retrieve raw audio bytes regardless of backing store."""
+
+        if self.is_configured():
+            return await self._storage.download_audio(stored_key)
+
+        path = Path(stored_key)
+        if not path.is_absolute():
+            path = self._local_dir / stored_key
+
+        if not path.exists():
+            raise StorageError("Audio file unavailable")
+
+        return path.read_bytes()
+
     def presigned_url(self, object_key: str, *, expires_in: int = 3600) -> str:
         if not self.is_configured():
             raise StorageError("S3 storage is not configured")
