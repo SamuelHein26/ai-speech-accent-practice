@@ -9,7 +9,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -271,3 +271,33 @@ async def accent_audio(
             "Content-Disposition": f"inline; filename={filename}",
         },
     )
+
+
+@router.delete("/{attempt_id}", status_code=204)
+async def delete_accent_attempt(
+    attempt_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    stmt = select(PracticeAttempt).where(PracticeAttempt.attempt_id == attempt_id)
+    result = await db.execute(stmt)
+    attempt = result.scalar_one_or_none()
+
+    if not attempt or attempt.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    if attempt.audio_path:
+        try:
+            await storage.delete_audio(attempt.audio_path)
+        except StorageError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        except Exception as exc:  # pragma: no cover - defensive guard
+            raise HTTPException(status_code=500, detail=f"Failed to delete audio: {exc}") from exc
+
+    await db.delete(attempt)
+    await db.commit()
+
+    return Response(status_code=204)

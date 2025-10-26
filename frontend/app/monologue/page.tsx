@@ -1,7 +1,14 @@
 "use client";
 
 import Header from "../components/Header";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import LiveWaveform from "../components/LiveWaveform";
 
 /** ---- API response types (strict typing; no any) ---- */
@@ -37,11 +44,94 @@ const RAW_API_BASE =
 
 const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
 
+const resolveApiUrl = (path: string): string => {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${normalized}`;
+};
+
 /** ---- Suggestion trigger silence threshold (ms) ---- */
 const SUGGESTION_SILENCE_MS = 6_000;
 
 /** ---- Maximum live capture duration (seconds) ---- */
 const MAX_RECORDING_SECONDS = 180;
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const FILLER_PHRASES = [
+  "um",
+  "uh",
+  "erm",
+  "hmm",
+  "like",
+  "so",
+  "actually",
+  "basically",
+  "literally",
+  "you know",
+  "i mean",
+  "kind of",
+  "sort of",
+] as const;
+
+const fillerRegex = new RegExp(
+  `\\b(${FILLER_PHRASES.map((phrase) =>
+    escapeRegex(phrase).replace(/\\s+/g, "\\\\s+")
+  ).join("|")})\\b`,
+  "gi"
+);
+
+const highlightFillerWords = (text: string): ReactNode[] => {
+  if (!text) return [];
+
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  fillerRegex.lastIndex = 0;
+
+  const pushText = (segment: string) => {
+    if (!segment) return;
+    const parts = segment.split("\n");
+    parts.forEach((part, index) => {
+      nodes.push(<Fragment key={`text-${key++}`}>{part}</Fragment>);
+      if (index < parts.length - 1) {
+        nodes.push(<br key={`br-${key++}`} />);
+      }
+    });
+  };
+
+  while ((match = fillerRegex.exec(text)) !== null) {
+    const start = match.index;
+    if (start > lastIndex) {
+      pushText(text.slice(lastIndex, start));
+    }
+
+    const matched = match[0];
+    nodes.push(
+      <mark
+        key={`filler-${key++}`}
+        className="rounded bg-yellow-200 px-1 text-gray-900 dark:bg-yellow-500/60 dark:text-gray-900"
+      >
+        {matched}
+      </mark>
+    );
+    lastIndex = start + matched.length;
+  }
+
+  if (lastIndex < text.length) {
+    pushText(text.slice(lastIndex));
+  }
+
+  if (nodes.length === 0) {
+    return [text];
+  }
+
+  return nodes;
+};
 
 const formatClock = (totalSeconds: number): string => {
   const safeSeconds = Math.max(0, Math.floor(totalSeconds));
@@ -105,6 +195,7 @@ export default function MonologuePage() {
   const formattedElapsed = formatClock(clampedElapsed);
   const formattedRemaining = formatClock(remainingSeconds);
   const isNearLimit = remainingSeconds <= 10 && isRecording;
+  const showInteractivePanels = isRecording || isProcessing;
 
   /** === Session / Media refs (mutable, not reactive) === */
   const sessionRef = useRef<string | null>(null); // backend sess ID (guest/user)
@@ -366,7 +457,12 @@ export default function MonologuePage() {
     setLivePartial("");
     lastFinalRef.current = "";
     lastPartialRef.current = "";
-    setAudioUrl(null);
+    setAudioUrl((prev) => {
+      if (prev && prev.startsWith("blob:")) {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
     setSuggestions([]);
     setIsFetchingSuggestions(false);
     setSuggestionError(null);
@@ -675,10 +771,16 @@ export default function MonologuePage() {
             "Transcription incomplete."
         );
         setFillerWordCount(data.filler_word_count ?? null);
-        setAudioUrl(
-          data.audio_url ||
-            URL.createObjectURL(blob)
-        );
+        const playbackUrl = data.audio_url
+          ? resolveApiUrl(data.audio_url)
+          : URL.createObjectURL(blob);
+        setAudioUrl((prev) => {
+          if (prev && prev.startsWith("blob:") && prev !== playbackUrl) {
+            URL.revokeObjectURL(prev);
+          }
+          return playbackUrl;
+        });
+        audioChunks.current = [];
       }
     } catch (e: unknown) {
       const msg =
@@ -805,10 +907,7 @@ export default function MonologuePage() {
                lg+: 2-col split view
                <lg: stacked with gap
           */}
-          {(isRecording ||
-            suggestions.length > 0 ||
-            isFetchingSuggestions ||
-            suggestionError) && (
+          {showInteractivePanels && (
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full mb-10">
               {/* --- Live Transcript panel (col 1) --- */}
               <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700">
@@ -955,8 +1054,8 @@ export default function MonologuePage() {
                   Filler words detected: <span className="font-semibold">{fillerWordCount}</span>
                 </p>
               )}
-              <p className="whitespace-pre-line text-sm leading-relaxed text-gray-800 dark:text-gray-200">
-                {finalTranscript}
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+                {highlightFillerWords(finalTranscript)}
               </p>
             </section>
           )}
