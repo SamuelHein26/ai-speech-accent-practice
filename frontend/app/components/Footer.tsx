@@ -10,18 +10,16 @@ export default function Footer() {
           >
             About
           </a>
-          <a
-            href="/#"
-            className="hover:text-red-600 dark:hover:text-red-400 transition"
+          <button 
+            className="hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer"
           >
             Privacy Policy
-          </a>
-          <a
-            href="/#"
-            className="hover:text-red-600 dark:hover:text-red-400 transition"
+          </button>
+          <button
+            className="hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer"
           >
             Terms of Service
-          </a>
+          </button>
         </div>
 
         {/* Copyright */}

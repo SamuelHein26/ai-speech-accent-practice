@@ -59,12 +59,18 @@ export default function AccentPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AccentTrainingResponse | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
-  const [currentPhrase, setCurrentPhrase] = useState(() => pickRandomPhrase());
+  const [currentPhrase, setCurrentPhrase] = useState("");
+  const [isMounted, setIsMounted] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const playbackUrlRef = useRef<string | null>(null);
 
   const isBusy = useMemo(() => isRecording || isUploading, [isRecording, isUploading]);
+
+  useEffect(() => {
+    setIsMounted(true);
+    setCurrentPhrase(pickRandomPhrase());
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -244,9 +250,13 @@ export default function AccentPage() {
                   Refresh phrase
                 </button>
               </div>
-              <div className="rounded-2xl border border-dashed border-red-200 dark:border-gray-700 bg-red-50/40 dark:bg-gray-800/60 p-6">
-                <ParagraphFeedback feedback={result?.words} fallbackText={currentPhrase} />
-              </div>
+                <div className="rounded-2xl border border-dashed border-red-200 dark:border-gray-700 bg-red-50/40 dark:bg-gray-800/60 p-6">
+                  {isMounted ? (
+                    <ParagraphFeedback feedback={result?.words} fallbackText={currentPhrase} />
+                  ) : (
+                    <p className="text-base leading-relaxed text-gray-400 dark:text-gray-500">Loading phrase...</p>
+                  )}
+                </div>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
