@@ -120,5 +120,9 @@ def _coerce_user_id(value: str | None) -> int | None:
         return None
     try:
         return int(value)
+        coerced = int(value)
+        if coerced <= 0:
+            return None
+        return coerced
     except (ValueError, TypeError):
         return None
