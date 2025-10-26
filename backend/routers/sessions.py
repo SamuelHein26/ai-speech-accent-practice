@@ -150,7 +150,18 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
     except StorageError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-    return {"final": transcript, "filler_word_count": filler_word_count}
+    audio_url: str | None = None
+    stmt = select(Session).where(Session.session_id == session_id)
+    result = await db.execute(stmt)
+    row = result.scalar_one_or_none()
+    if row and row.audio_path:
+        audio_url = f"/session/{session_id}/audio"
+
+    return {
+        "final": transcript,
+        "filler_word_count": filler_word_count,
+        "audio_url": audio_url,
+    }
 
 
 @router.get("/history", response_model=list[SessionSummary])

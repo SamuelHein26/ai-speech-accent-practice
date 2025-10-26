@@ -20,7 +20,13 @@ class S3AudioStorage:
     ) -> None:
         config = S3StorageConfig.from_env()
         if prefix:
-            config.prefix = prefix.rstrip("/")
+            base_prefix = config.prefix.rstrip("/") if config.prefix else ""
+            accent_prefix = prefix.rstrip("/")
+            config.prefix = (
+                f"{base_prefix}/{accent_prefix}".strip("/")
+                if base_prefix
+                else accent_prefix
+            )
 
         self._storage = S3Storage(config)
         self._local_dir = Path(local_dir or os.getenv("ACCENT_LOCAL_STORAGE", "./accent_attempts"))
@@ -74,6 +80,38 @@ class S3AudioStorage:
 
         # Local development fallback
         return self._write_local(object_key, data)
+
+    async def download_audio(self, stored_key: str) -> bytes:
+        """Retrieve raw audio bytes regardless of backing store."""
+
+        if self.is_configured():
+            return await self._storage.download_audio(stored_key)
+
+        path = Path(stored_key)
+        if not path.is_absolute():
+            path = self._local_dir / stored_key
+
+        if not path.exists():
+            raise StorageError("Audio file unavailable")
+
+        return path.read_bytes()
+
+    async def delete_audio(self, stored_key: str) -> None:
+        """Delete the stored audio object from S3 or the local fallback."""
+
+        if self.is_configured():
+            await self._storage.delete_audio(stored_key)
+            return
+
+        path = Path(stored_key)
+        if not path.is_absolute():
+            path = self._local_dir / stored_key
+
+        if path.exists():
+            try:
+                path.unlink()
+            except OSError as exc:
+                raise StorageError(f"Failed to delete stored audio: {exc}")
 
     def presigned_url(self, object_key: str, *, expires_in: int = 3600) -> str:
         if not self.is_configured():

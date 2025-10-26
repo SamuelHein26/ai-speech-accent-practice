@@ -1,7 +1,14 @@
 "use client";
 
 import Header from "../components/Header";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import LiveWaveform from "../components/LiveWaveform";
 
 /** ---- API response types (strict typing; no any) ---- */
@@ -37,8 +44,103 @@ const RAW_API_BASE =
 
 const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
 
+const resolveApiUrl = (path: string): string => {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${normalized}`;
+};
+
 /** ---- Suggestion trigger silence threshold (ms) ---- */
 const SUGGESTION_SILENCE_MS = 6_000;
+
+/** ---- Maximum live capture duration (seconds) ---- */
+const MAX_RECORDING_SECONDS = 180;
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const FILLER_PHRASES = [
+  "um",
+  "uh",
+  "erm",
+  "hmm",
+  "like",
+  "so",
+  "actually",
+  "basically",
+  "literally",
+  "you know",
+  "i mean",
+  "kind of",
+  "sort of",
+] as const;
+
+const fillerRegex = new RegExp(
+  `\\b(${FILLER_PHRASES.map((phrase) =>
+    escapeRegex(phrase).replace(/\\s+/g, "\\\\s+")
+  ).join("|")})\\b`,
+  "gi"
+);
+
+const highlightFillerWords = (text: string): ReactNode[] => {
+  if (!text) return [];
+
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  fillerRegex.lastIndex = 0;
+
+  const pushText = (segment: string) => {
+    if (!segment) return;
+    const parts = segment.split("\n");
+    parts.forEach((part, index) => {
+      nodes.push(<Fragment key={`text-${key++}`}>{part}</Fragment>);
+      if (index < parts.length - 1) {
+        nodes.push(<br key={`br-${key++}`} />);
+      }
+    });
+  };
+
+  while ((match = fillerRegex.exec(text)) !== null) {
+    const start = match.index;
+    if (start > lastIndex) {
+      pushText(text.slice(lastIndex, start));
+    }
+
+    const matched = match[0];
+    nodes.push(
+      <mark
+        key={`filler-${key++}`}
+        className="rounded bg-yellow-200 px-1 text-gray-900 dark:bg-yellow-500/60 dark:text-gray-900"
+      >
+        {matched}
+      </mark>
+    );
+    lastIndex = start + matched.length;
+  }
+
+  if (lastIndex < text.length) {
+    pushText(text.slice(lastIndex));
+  }
+
+  if (nodes.length === 0) {
+    return [text];
+  }
+
+  return nodes;
+};
+
+const formatClock = (totalSeconds: number): string => {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (safeSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+};
 
 /** ---- WS URL builder (wss:// in prod https ctx) ---- */
 const wsURL = (): string => {
@@ -74,6 +176,8 @@ export default function MonologuePage() {
   const [lastSuggestionSource, setLastSuggestionSource] = useState<
     "auto" | "manual" | null
   >(null); // UX copy state (auto-surface vs manual refresh CTA)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0); // live recording duration
+  const [timeLimitReached, setTimeLimitReached] = useState(false); // flag when 3-minute cap hit
 
   /** ---- Streaming transcript state (LLM/ASR incremental buffer mgmt) ---- */
   const [liveCommitted, setLiveCommitted] = useState(""); // committed finalized turns
@@ -86,11 +190,27 @@ export default function MonologuePage() {
   const suggestionLeadSeconds = Math.round(
     SUGGESTION_SILENCE_MS / 1000
   );
+  const clampedElapsed = Math.min(elapsedSeconds, MAX_RECORDING_SECONDS);
+  const remainingSeconds = Math.max(0, MAX_RECORDING_SECONDS - clampedElapsed);
+  const formattedElapsed = formatClock(clampedElapsed);
+  const formattedRemaining = formatClock(remainingSeconds);
+  const isNearLimit = remainingSeconds <= 10 && isRecording;
+  const showInteractivePanels = isRecording || isProcessing;
 
   /** === Session / Media refs (mutable, not reactive) === */
   const sessionRef = useRef<string | null>(null); // backend sess ID (guest/user)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null); // browser MediaRecorder handle
   const audioChunks = useRef<Blob[]>([]); // captured audio chunks for upload/finalize
+  const timerIdRef = useRef<number | null>(null); // interval id for UI timer
+  const timerStartRef = useRef<number | null>(null); // epoch ms when recording started
+  const timeLimitTriggeredRef = useRef(false); // tracks whether auto-stop fired
+
+  const clearRecordingTimer = useCallback(() => {
+    if (timerIdRef.current !== null) {
+      window.clearInterval(timerIdRef.current);
+      timerIdRef.current = null;
+    }
+  }, []);
 
   /** === Live stream refs (WebSocket + WebAudio graph) === */
   const wsRef = useRef<WebSocket | null>(null); // WS handle -> FastAPI stream proxy
@@ -143,8 +263,11 @@ export default function MonologuePage() {
       if (mr && mr.state !== "inactive") {
         mr.stop();
       }
+
+      clearRecordingTimer();
+      timerStartRef.current = null;
     };
-  }, []);
+  }, [clearRecordingTimer]);
 
   /** === Activity register: called whenever we get new speech tokens via RT-STT === */
   const registerSpeechActivity = useCallback(() => {
@@ -334,13 +457,22 @@ export default function MonologuePage() {
     setLivePartial("");
     lastFinalRef.current = "";
     lastPartialRef.current = "";
-    setAudioUrl(null);
+    setAudioUrl((prev) => {
+      if (prev && prev.startsWith("blob:")) {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
     setSuggestions([]);
     setIsFetchingSuggestions(false);
     setSuggestionError(null);
     setLastSuggestionSource(null);
     suggestionCooldownRef.current = false;
     lastSpeechAtRef.current = Date.now();
+    setElapsedSeconds(0);
+    setTimeLimitReached(false);
+    clearRecordingTimer();
+    timeLimitTriggeredRef.current = false;
 
     try {
       // 1. obtain/ensure server session for DB persistence
@@ -392,6 +524,24 @@ export default function MonologuePage() {
           audioChunks.current.push(evt.data);
       };
       mr.start();
+
+      timerStartRef.current = Date.now();
+      timerIdRef.current = window.setInterval(() => {
+        if (!timerStartRef.current) return;
+        const diffSeconds = Math.floor(
+          (Date.now() - timerStartRef.current) / 1000
+        );
+        const elapsed = Math.min(diffSeconds, MAX_RECORDING_SECONDS);
+        setElapsedSeconds(elapsed);
+
+        if (diffSeconds >= MAX_RECORDING_SECONDS) {
+          setTimeLimitReached(true);
+          clearRecordingTimer();
+          timerStartRef.current = null;
+          timeLimitTriggeredRef.current = true;
+          void stopRecording();
+        }
+      }, 250);
 
       // 4. WS open -> wire up ScriptProcessorNode pump
       const url = wsURL();
@@ -517,9 +667,11 @@ export default function MonologuePage() {
   };
 
   /** === stopRecording: tear down WS/Audio graph, upload blob, finalize ASR === */
-  const stopRecording = async (): Promise<void> => {
+  const stopRecording = useCallback(async (): Promise<void> => {
     setIsRecording(false);
     setIsProcessing(true);
+    clearRecordingTimer();
+    timerStartRef.current = null;
 
     try {
       // A. graceful WS shutdown
@@ -619,10 +771,16 @@ export default function MonologuePage() {
             "Transcription incomplete."
         );
         setFillerWordCount(data.filler_word_count ?? null);
-        setAudioUrl(
-          data.audio_url ||
-            URL.createObjectURL(blob)
-        );
+        const playbackUrl = data.audio_url
+          ? resolveApiUrl(data.audio_url)
+          : URL.createObjectURL(blob);
+        setAudioUrl((prev) => {
+          if (prev && prev.startsWith("blob:") && prev !== playbackUrl) {
+            URL.revokeObjectURL(prev);
+          }
+          return playbackUrl;
+        });
+        audioChunks.current = [];
       }
     } catch (e: unknown) {
       const msg =
@@ -632,8 +790,14 @@ export default function MonologuePage() {
       setError(msg);
     } finally {
       setIsProcessing(false);
+      if (timeLimitTriggeredRef.current) {
+        setElapsedSeconds(MAX_RECORDING_SECONDS);
+      } else {
+        setElapsedSeconds(0);
+      }
+      timeLimitTriggeredRef.current = false;
     }
-  };
+  }, [clearRecordingTimer]);
 
   /** === JSX === */
   return (
@@ -697,6 +861,38 @@ export default function MonologuePage() {
               )}
             </div>
 
+            {(isRecording || clampedElapsed > 0 || timeLimitReached) && (
+              <div className="flex flex-col items-center gap-1 text-sm text-gray-600 dark:text-gray-300 mb-4">
+                <span className="text-xs uppercase tracking-widest">Recording timer</span>
+                <span
+                  className={`font-mono text-3xl font-semibold ${
+                    isNearLimit
+                      ? "text-red-600 dark:text-red-400"
+                      : "text-gray-900 dark:text-gray-100"
+                  }`}
+                >
+                  {formattedElapsed}
+                </span>
+                {isRecording ? (
+                  <span
+                    className={`text-xs ${
+                      isNearLimit
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-gray-500 dark:text-gray-400"
+                    }`}
+                  >
+                    Time left: {formattedRemaining}
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                    {timeLimitReached
+                      ? "Maximum duration reached — we saved your take automatically."
+                      : `Maximum duration: ${formatClock(MAX_RECORDING_SECONDS)}`}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Live waveform visualization (VU meter style) */}
             {isRecording && (
               <div className="w-full max-w-xl">
@@ -711,10 +907,7 @@ export default function MonologuePage() {
                lg+: 2-col split view
                <lg: stacked with gap
           */}
-          {(isRecording ||
-            suggestions.length > 0 ||
-            isFetchingSuggestions ||
-            suggestionError) && (
+          {showInteractivePanels && (
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full mb-10">
               {/* --- Live Transcript panel (col 1) --- */}
               <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700">
@@ -861,8 +1054,8 @@ export default function MonologuePage() {
                   Filler words detected: <span className="font-semibold">{fillerWordCount}</span>
                 </p>
               )}
-              <p className="whitespace-pre-line text-sm leading-relaxed text-gray-800 dark:text-gray-200">
-                {finalTranscript}
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+                {highlightFillerWords(finalTranscript)}
               </p>
             </section>
           )}
