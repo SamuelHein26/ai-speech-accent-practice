@@ -91,7 +91,7 @@ export default function AccentPage() {
       const formData = new FormData();
       formData.append("audio", blob, "accent-practice.webm");
       formData.append("text", PRACTICE_PARAGRAPH);
-      formData.append("accentTarget", selectedAccent);
+      formData.append("accent", selectedAccent);
       formData.append("userId", "0");
 
       try {

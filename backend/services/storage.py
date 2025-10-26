@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from dataclasses import dataclass
 from typing import Optional
@@ -55,6 +56,10 @@ class S3Storage:
         self.config = config or S3StorageConfig.from_env()
         self._client = None
 
+    def _ensure_configured(self) -> None:
+        if not self.is_configured():
+            raise StorageError("S3 storage is not configured")
+
     def _get_client(self):
         """Lazy initialization of S3 client."""
         if self._client is None:
@@ -74,44 +79,40 @@ class S3Storage:
         return self.config.is_configured()
 
     async def upload_audio(self, object_key: str, file_path: str) -> str:
-        """
-        Upload file_path to S3 and return the stored key.
-        
-        object_key should be a relative key (no leading slash). The optional
-        S3_STORAGE_PREFIX is automatically prepended if provided.
-        """
-        if not self.is_configured():
-            raise StorageError("S3 storage is not configured")
+        """Upload ``file_path`` to S3 and return the stored key."""
 
-        final_key = self._apply_prefix(object_key)
-        client = self._get_client()
+        def _upload() -> str:
+            self._ensure_configured()
 
-        try:
-            # Upload with appropriate metadata
-            client.upload_file(
-                file_path,
-                self.config.bucket,
-                final_key,
-                ExtraArgs={
-                    'ContentType': 'audio/wav',
-                    'ACL': 'private',  # Keep files private, use presigned URLs
-                }
-            )
-            return final_key
-        except (ClientError, BotoCoreError) as e:
-            raise StorageError(f"S3 upload failed: {str(e)}")
+            final_key = self._apply_prefix(object_key)
+            client = self._get_client()
 
-    async def upload_audio_bytes(
+            try:
+                client.upload_file(
+                    file_path,
+                    self.config.bucket,
+                    final_key,
+                    ExtraArgs={
+                        'ContentType': 'audio/wav',
+                        'ACL': 'private',
+                    }
+                )
+                return final_key
+            except (ClientError, BotoCoreError) as e:
+                raise StorageError(f"S3 upload failed: {str(e)}")
+
+        return await asyncio.to_thread(_upload)
+
+    def put_object_bytes(
         self,
         object_key: str,
         data: bytes,
         *,
         content_type: str = "audio/webm",
     ) -> str:
-        """Upload in-memory bytes to S3 and return the stored key."""
+        """Synchronously upload ``data`` to S3 and return the stored key."""
 
-        if not self.is_configured():
-            raise StorageError("S3 storage is not configured")
+        self._ensure_configured()
 
         final_key = self._apply_prefix(object_key)
         client = self._get_client()
@@ -127,11 +128,26 @@ class S3Storage:
         except (ClientError, BotoCoreError) as e:
             raise StorageError(f"S3 upload failed: {str(e)}")
 
-    async def download_audio(self, stored_key: str) -> bytes:
-        """Fetch and return the raw audio bytes for stored_key."""
-        if not self.is_configured():
-            raise StorageError("S3 storage is not configured")
+    async def upload_audio_bytes(
+        self,
+        object_key: str,
+        data: bytes,
+        *,
+        content_type: str = "audio/webm",
+    ) -> str:
+        """Upload in-memory bytes to S3 and return the stored key."""
 
+        return await asyncio.to_thread(
+            self.put_object_bytes,
+            object_key,
+            data,
+            content_type=content_type,
+        )
+
+    def get_object_bytes(self, stored_key: str) -> bytes:
+        """Synchronously fetch and return the raw audio bytes for ``stored_key``."""
+
+        self._ensure_configured()
         client = self._get_client()
 
         try:
@@ -142,6 +158,11 @@ class S3Storage:
             return response['Body'].read()
         except (ClientError, BotoCoreError) as e:
             raise StorageError(f"S3 download failed: {str(e)}")
+
+    async def download_audio(self, stored_key: str) -> bytes:
+        """Fetch and return the raw audio bytes for ``stored_key``."""
+
+        return await asyncio.to_thread(self.get_object_bytes, stored_key)
 
     def generate_presigned_url(self, stored_key: str, expiration: int = 3600) -> str:
         if not self.is_configured():
@@ -162,11 +183,10 @@ class S3Storage:
         except (ClientError, BotoCoreError) as e:
             raise StorageError(f"Failed to generate presigned URL: {str(e)}")
 
-    async def delete_audio(self, stored_key: str) -> None:
-        """Delete the object identified by stored_key from storage."""
-        if not self.is_configured():
-            raise StorageError("S3 storage is not configured")
+    def delete_object(self, stored_key: str) -> None:
+        """Synchronously delete the object identified by ``stored_key`` from storage."""
 
+        self._ensure_configured()
         client = self._get_client()
 
         try:
@@ -176,6 +196,11 @@ class S3Storage:
             )
         except (ClientError, BotoCoreError) as e:
             raise StorageError(f"Failed to delete stored audio: {str(e)}")
+
+    async def delete_audio(self, stored_key: str) -> None:
+        """Delete the object identified by ``stored_key`` from storage."""
+
+        await asyncio.to_thread(self.delete_object, stored_key)
 
     def _apply_prefix(self, object_key: str) -> str:
         """Apply the configured prefix to the object key."""
