@@ -1,6 +1,7 @@
 # routers/sessions.py
 import asyncio
 import os
+import re
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
@@ -26,6 +27,42 @@ router = APIRouter(prefix="/session", tags=["Sessions"])
 storage = S3Storage()
 session_manager = SessionManager(Path("./live_sessions"), storage=storage)
 transcriber = TranscriptionService(os.getenv("ASSEMBLYAI_API_KEY"))
+
+FILLER_PHRASES: tuple[tuple[str, ...], ...] = (
+    ("um",),
+    ("uh",),
+    ("erm",),
+    ("hmm",),
+    ("like",),
+    ("so",),
+    ("actually",),
+    ("basically",),
+    ("literally",),
+    ("you", "know"),
+    ("i", "mean"),
+    ("kind", "of"),
+    ("sort", "of"),
+)
+
+
+def count_filler_words(transcript: str | None) -> int:
+    """Return the number of filler phrases detected in the transcript."""
+
+    if not transcript:
+        return 0
+
+    tokens = re.findall(r"[a-zA-Z']+", transcript.lower())
+    total = 0
+
+    for phrase in FILLER_PHRASES:
+        size = len(phrase)
+        if size == 0:
+            continue
+        for idx in range(len(tokens) - size + 1):
+            if tokens[idx : idx + size] == list(phrase):
+                total += 1
+
+    return total
 
 @router.post("/start")
 async def start_session(
@@ -98,6 +135,8 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
         # Clean temp dir on failure; leave DB untouched
         raise HTTPException(status_code=500, detail=f"Transcription error: {e}")
 
+    filler_word_count = count_filler_words(transcript)
+
     # 4) Persist (users) or purge (guests)
     try:
         await session_manager.finalize_and_persist(
@@ -106,11 +145,12 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
             transcript_text=transcript,
             wav_path=wav_path,
             duration_seconds=duration_seconds,
+            filler_word_count=filler_word_count,
         )
     except StorageError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-    return {"final": transcript}
+    return {"final": transcript, "filler_word_count": filler_word_count}
 
 
 @router.get("/history", response_model=list[SessionSummary])
@@ -128,6 +168,7 @@ async def session_history(
             Session.created_at,
             Session.duration_seconds,
             Session.final_transcript,
+            Session.filler_word_count,
             Session.audio_path.isnot(None).label("audio_available"),
         )
         .where(Session.user_id == current_user.id)
@@ -143,6 +184,7 @@ async def session_history(
             created_at=row.created_at,
             duration_seconds=row.duration_seconds,
             final_transcript=row.final_transcript,
+            filler_word_count=row.filler_word_count,
             audio_available=row.audio_available,
         )
         for row in sessions

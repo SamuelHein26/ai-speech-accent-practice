@@ -13,6 +13,7 @@ type SessionSummary = {
   created_at: string;
   duration_seconds: number | null;
   final_transcript: string | null;
+  filler_word_count: number | null;
   audio_available: boolean;
 };
 
@@ -197,6 +198,9 @@ export default function DashboardPage() {
                         Transcript
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                        Filler words
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                         Duration
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
@@ -215,14 +219,19 @@ export default function DashboardPage() {
                           <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-200">
                             {new Date(session.created_at).toLocaleString()}
                           </td>
-                          <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
-                            <span className="block max-w-sm whitespace-pre-line">
-                              {session.final_transcript || "Transcript unavailable"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
-                            {session.duration_seconds ? `${session.duration_seconds}s` : "Unknown"}
-                          </td>
+                        <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                          <span className="block max-w-sm whitespace-pre-line">
+                            {session.final_transcript || "Transcript unavailable"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-300">
+                          {typeof session.filler_word_count === "number"
+                            ? session.filler_word_count
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                          {session.duration_seconds ? `${session.duration_seconds}s` : "Unknown"}
+                        </td>
                           <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400 space-y-2">
                             {session.audio_available ? (
                               <>

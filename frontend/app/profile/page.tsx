@@ -22,6 +22,7 @@ type SessionSummary = {
   created_at: string;
   duration_seconds: number | null;
   final_transcript: string | null;
+  filler_word_count: number | null;
   audio_available: boolean;
 };
 
@@ -308,6 +309,9 @@ export default function ProfilePage() {
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
                         {session.final_transcript || "Transcript unavailable"}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Filler words: {typeof session.filler_word_count === "number" ? session.filler_word_count : "—"}
                       </p>
                     </div>
                     <div className="flex flex-col sm:items-end gap-2">

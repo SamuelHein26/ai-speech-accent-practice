@@ -52,6 +52,7 @@ class SessionSummary(BaseModel):
     created_at: datetime
     duration_seconds: Optional[int]
     final_transcript: Optional[str]
+    filler_word_count: Optional[int]
     audio_available: bool
 
     class Config:
