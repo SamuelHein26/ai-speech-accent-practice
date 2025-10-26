@@ -135,6 +135,12 @@ export default function Header() {
                   View Profile
                 </button>
                 <button
+                  onClick={() => router.push("/dashboard")}
+                  className="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-red-50 dark:hover:bg-gray-700 transition"
+                >
+                  Dashboard
+                </button>
+                <button
                   onClick={handleLogout}
                   className="block w-full text-left px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 transition"
                 >
