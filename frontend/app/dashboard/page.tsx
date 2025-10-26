@@ -17,6 +17,15 @@ type SessionSummary = {
   audio_available: boolean;
 };
 
+type AccentAttemptSummary = {
+  attempt_id: string;
+  created_at: string;
+  accent_target: string;
+  score: number | null;
+  transcript: string | null;
+  audio_available: boolean;
+};
+
 export default function DashboardPage() {
   const [history, setHistory] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,14 +36,26 @@ export default function DashboardPage() {
   const audioSourcesRef = useRef<Record<string, string>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [accentHistory, setAccentHistory] = useState<AccentAttemptSummary[]>([]);
+  const [accentLoading, setAccentLoading] = useState(true);
+  const [accentError, setAccentError] = useState<string | null>(null);
+  const [accentAudioSources, setAccentAudioSources] = useState<Record<string, string>>({});
+  const accentAudioSourcesRef = useRef<Record<string, string>>({});
+  const [loadingAccentAudioId, setLoadingAccentAudioId] = useState<string | null>(null);
+  const [accentAudioError, setAccentAudioError] = useState<string | null>(null);
 
   useEffect(() => {
     audioSourcesRef.current = audioSources;
   }, [audioSources]);
 
   useEffect(() => {
+    accentAudioSourcesRef.current = accentAudioSources;
+  }, [accentAudioSources]);
+
+  useEffect(() => {
     return () => {
       Object.values(audioSourcesRef.current).forEach((url) => URL.revokeObjectURL(url));
+      Object.values(accentAudioSourcesRef.current).forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
 
@@ -43,6 +64,8 @@ export default function DashboardPage() {
     if (!token) {
       setError("Please log in to view your dashboard.");
       setLoading(false);
+      setAccentError("Please log in to review accent practice attempts.");
+      setAccentLoading(false);
       return;
     }
 
@@ -71,10 +94,34 @@ export default function DashboardPage() {
       }
     };
 
+    const fetchAccent = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/accent/history`, {
+          headers: { Authorization: "Bearer " + token },
+        });
+
+        if (!response.ok) {
+          const detail = (await response.json().catch(() => ({}))) as { detail?: string };
+          throw new Error(detail.detail || "Unable to load accent practice history.");
+        }
+
+        const data = (await response.json()) as AccentAttemptSummary[];
+        setAccentHistory(data);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Unable to load accent practice history.";
+        setAccentError(message);
+      } finally {
+        setAccentLoading(false);
+      }
+    };
+
     fetchHistory();
+    fetchAccent();
   }, []);
 
   const hasRecordings = useMemo(() => history.length > 0, [history]);
+  const hasAccentRecordings = useMemo(() => accentHistory.length > 0, [accentHistory]);
 
   const handleLoadAudio = useCallback(
     async (sessionId: string) => {
@@ -118,6 +165,54 @@ export default function DashboardPage() {
         setAudioError(message);
       } finally {
         setLoadingAudioId(null);
+      }
+    },
+    []
+  );
+
+  const handleLoadAccentAudio = useCallback(
+    async (attemptId: string) => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setAccentAudioError("Please log in again to load this recording.");
+        return;
+      }
+
+      if (accentAudioSourcesRef.current[attemptId]) {
+        setAccentAudioError(null);
+        return;
+      }
+
+      setLoadingAccentAudioId(attemptId);
+      setAccentAudioError(null);
+
+      try {
+        const response = await fetch(`${API_BASE}/accent/${attemptId}/audio`, {
+          headers: { Authorization: "Bearer " + token },
+        });
+
+        if (!response.ok) {
+          const detail = (await response.json().catch(() => ({}))) as { detail?: string };
+          throw new Error(detail.detail || "Unable to load accent practice audio.");
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        setAccentAudioSources((prev) => {
+          const next = { ...prev };
+          if (next[attemptId]) {
+            URL.revokeObjectURL(next[attemptId]);
+          }
+          next[attemptId] = objectUrl;
+          return next;
+        });
+        accentAudioSourcesRef.current[attemptId] = objectUrl;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Unable to fetch accent practice audio.";
+        setAccentAudioError(message);
+      } finally {
+        setLoadingAccentAudioId(null);
       }
     },
     []
@@ -178,6 +273,14 @@ export default function DashboardPage() {
           </header>
 
           <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-red-100 dark:border-gray-800 p-8">
+            <div className="flex flex-col gap-1 mb-6 text-center">
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                Monologue sessions
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Review transcripts, filler-word counts, and replay your long-form practice takes.
+              </p>
+            </div>
             {loading ? (
               <p className="text-center text-gray-600 dark:text-gray-400">Loading session history...</p>
             ) : error ? (
@@ -280,6 +383,103 @@ export default function DashboardPage() {
               <p className="mt-2 text-center text-sm text-red-500" role="alert">
                 {deleteError}
               </p>
+            )}
+          </section>
+
+          <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-red-100 dark:border-gray-800 p-8">
+            <div className="flex flex-col gap-1 mb-6 text-center">
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                Accent practice library
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Listen back to targeted accent exercises separate from your monologue recordings.
+              </p>
+            </div>
+            {accentLoading ? (
+              <p className="text-center text-gray-600 dark:text-gray-400">Loading accent practice history...</p>
+            ) : accentError ? (
+              <p className="text-center text-red-500 text-sm">{accentError}</p>
+            ) : !hasAccentRecordings ? (
+              <p className="text-center text-gray-600 dark:text-gray-400">
+                You haven&apos;t saved any accent training attempts yet. Visit the accent page to capture your first clip.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                  <thead className="bg-red-50 dark:bg-gray-800/60">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                        Recorded
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                        Accent
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                        Score
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                        Transcript
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                        Audio
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                    {accentHistory.map((attempt) => {
+                      const audioUrl = accentAudioSources[attempt.attempt_id];
+                      const accentLabel =
+                        attempt.accent_target.charAt(0).toUpperCase() + attempt.accent_target.slice(1);
+                      return (
+                        <tr key={attempt.attempt_id} className="hover:bg-red-50/60 dark:hover:bg-gray-800/60 transition">
+                          <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-200">
+                            {new Date(attempt.created_at).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                            {accentLabel}
+                          </td>
+                          <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-300">
+                            {typeof attempt.score === "number" ? `${Math.round(attempt.score)} / 100` : "—"}
+                          </td>
+                          <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                            <span className="block max-w-sm whitespace-pre-line">
+                              {attempt.transcript || "Transcript unavailable"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                            {attempt.audio_available ? (
+                              <>
+                                <button
+                                  className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-60"
+                                  onClick={() => handleLoadAccentAudio(attempt.attempt_id)}
+                                  disabled={loadingAccentAudioId === attempt.attempt_id}
+                                >
+                                  {loadingAccentAudioId === attempt.attempt_id
+                                    ? "Loading..."
+                                    : audioUrl
+                                    ? "Reload"
+                                    : "Load audio"}
+                                </button>
+                                {audioUrl && (
+                                  <audio controls className="w-full">
+                                    <source src={audioUrl} type="audio/webm" />
+                                    Your browser does not support audio playback.
+                                  </audio>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-xs text-gray-500">Audio unavailable</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {accentAudioError && (
+              <p className="mt-4 text-center text-sm text-red-500">{accentAudioError}</p>
             )}
           </section>
         </div>

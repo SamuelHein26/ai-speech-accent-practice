@@ -1,6 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
-from typing import Literal
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, EmailStr
 
@@ -72,3 +71,15 @@ class AccentTrainingResponse(BaseModel):
     words: List[AccentWordFeedback]
     tips: str
     transcript: str
+
+
+class AccentAttemptSummary(BaseModel):
+    attempt_id: str
+    created_at: datetime
+    accent_target: str
+    score: Optional[float]
+    transcript: Optional[str]
+    audio_available: bool
+
+    class Config:
+        orm_mode = True

@@ -40,6 +40,18 @@ const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
 /** ---- Suggestion trigger silence threshold (ms) ---- */
 const SUGGESTION_SILENCE_MS = 6_000;
 
+/** ---- Maximum live capture duration (seconds) ---- */
+const MAX_RECORDING_SECONDS = 180;
+
+const formatClock = (totalSeconds: number): string => {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (safeSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+};
+
 /** ---- WS URL builder (wss:// in prod https ctx) ---- */
 const wsURL = (): string => {
   try {
@@ -74,6 +86,8 @@ export default function MonologuePage() {
   const [lastSuggestionSource, setLastSuggestionSource] = useState<
     "auto" | "manual" | null
   >(null); // UX copy state (auto-surface vs manual refresh CTA)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0); // live recording duration
+  const [timeLimitReached, setTimeLimitReached] = useState(false); // flag when 3-minute cap hit
 
   /** ---- Streaming transcript state (LLM/ASR incremental buffer mgmt) ---- */
   const [liveCommitted, setLiveCommitted] = useState(""); // committed finalized turns
@@ -86,11 +100,26 @@ export default function MonologuePage() {
   const suggestionLeadSeconds = Math.round(
     SUGGESTION_SILENCE_MS / 1000
   );
+  const clampedElapsed = Math.min(elapsedSeconds, MAX_RECORDING_SECONDS);
+  const remainingSeconds = Math.max(0, MAX_RECORDING_SECONDS - clampedElapsed);
+  const formattedElapsed = formatClock(clampedElapsed);
+  const formattedRemaining = formatClock(remainingSeconds);
+  const isNearLimit = remainingSeconds <= 10 && isRecording;
 
   /** === Session / Media refs (mutable, not reactive) === */
   const sessionRef = useRef<string | null>(null); // backend sess ID (guest/user)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null); // browser MediaRecorder handle
   const audioChunks = useRef<Blob[]>([]); // captured audio chunks for upload/finalize
+  const timerIdRef = useRef<number | null>(null); // interval id for UI timer
+  const timerStartRef = useRef<number | null>(null); // epoch ms when recording started
+  const timeLimitTriggeredRef = useRef(false); // tracks whether auto-stop fired
+
+  const clearRecordingTimer = useCallback(() => {
+    if (timerIdRef.current !== null) {
+      window.clearInterval(timerIdRef.current);
+      timerIdRef.current = null;
+    }
+  }, []);
 
   /** === Live stream refs (WebSocket + WebAudio graph) === */
   const wsRef = useRef<WebSocket | null>(null); // WS handle -> FastAPI stream proxy
@@ -143,8 +172,11 @@ export default function MonologuePage() {
       if (mr && mr.state !== "inactive") {
         mr.stop();
       }
+
+      clearRecordingTimer();
+      timerStartRef.current = null;
     };
-  }, []);
+  }, [clearRecordingTimer]);
 
   /** === Activity register: called whenever we get new speech tokens via RT-STT === */
   const registerSpeechActivity = useCallback(() => {
@@ -341,6 +373,10 @@ export default function MonologuePage() {
     setLastSuggestionSource(null);
     suggestionCooldownRef.current = false;
     lastSpeechAtRef.current = Date.now();
+    setElapsedSeconds(0);
+    setTimeLimitReached(false);
+    clearRecordingTimer();
+    timeLimitTriggeredRef.current = false;
 
     try {
       // 1. obtain/ensure server session for DB persistence
@@ -392,6 +428,24 @@ export default function MonologuePage() {
           audioChunks.current.push(evt.data);
       };
       mr.start();
+
+      timerStartRef.current = Date.now();
+      timerIdRef.current = window.setInterval(() => {
+        if (!timerStartRef.current) return;
+        const diffSeconds = Math.floor(
+          (Date.now() - timerStartRef.current) / 1000
+        );
+        const elapsed = Math.min(diffSeconds, MAX_RECORDING_SECONDS);
+        setElapsedSeconds(elapsed);
+
+        if (diffSeconds >= MAX_RECORDING_SECONDS) {
+          setTimeLimitReached(true);
+          clearRecordingTimer();
+          timerStartRef.current = null;
+          timeLimitTriggeredRef.current = true;
+          void stopRecording();
+        }
+      }, 250);
 
       // 4. WS open -> wire up ScriptProcessorNode pump
       const url = wsURL();
@@ -517,9 +571,11 @@ export default function MonologuePage() {
   };
 
   /** === stopRecording: tear down WS/Audio graph, upload blob, finalize ASR === */
-  const stopRecording = async (): Promise<void> => {
+  const stopRecording = useCallback(async (): Promise<void> => {
     setIsRecording(false);
     setIsProcessing(true);
+    clearRecordingTimer();
+    timerStartRef.current = null;
 
     try {
       // A. graceful WS shutdown
@@ -632,8 +688,14 @@ export default function MonologuePage() {
       setError(msg);
     } finally {
       setIsProcessing(false);
+      if (timeLimitTriggeredRef.current) {
+        setElapsedSeconds(MAX_RECORDING_SECONDS);
+      } else {
+        setElapsedSeconds(0);
+      }
+      timeLimitTriggeredRef.current = false;
     }
-  };
+  }, [clearRecordingTimer]);
 
   /** === JSX === */
   return (
@@ -696,6 +758,38 @@ export default function MonologuePage() {
                 </button>
               )}
             </div>
+
+            {(isRecording || clampedElapsed > 0 || timeLimitReached) && (
+              <div className="flex flex-col items-center gap-1 text-sm text-gray-600 dark:text-gray-300 mb-4">
+                <span className="text-xs uppercase tracking-widest">Recording timer</span>
+                <span
+                  className={`font-mono text-3xl font-semibold ${
+                    isNearLimit
+                      ? "text-red-600 dark:text-red-400"
+                      : "text-gray-900 dark:text-gray-100"
+                  }`}
+                >
+                  {formattedElapsed}
+                </span>
+                {isRecording ? (
+                  <span
+                    className={`text-xs ${
+                      isNearLimit
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-gray-500 dark:text-gray-400"
+                    }`}
+                  >
+                    Time left: {formattedRemaining}
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                    {timeLimitReached
+                      ? "Maximum duration reached — we saved your take automatically."
+                      : `Maximum duration: ${formatClock(MAX_RECORDING_SECONDS)}`}
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Live waveform visualization (VU meter style) */}
             {isRecording && (
