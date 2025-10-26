@@ -11,13 +11,13 @@ export default function Footer() {
             About
           </a>
           <a
-            href="/privacy"
+            href="/#"
             className="hover:text-red-600 dark:hover:text-red-400 transition"
           >
             Privacy Policy
           </a>
           <a
-            href="/terms"
+            href="/#"
             className="hover:text-red-600 dark:hover:text-red-400 transition"
           >
             Terms of Service

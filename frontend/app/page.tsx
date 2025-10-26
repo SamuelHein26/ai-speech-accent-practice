@@ -54,7 +54,7 @@ export default function Home() {
 
           {/* Tile Description */}
           <p className="text-lg text-gray-600 dark:text-gray-300 text-center max-w-md leading-relaxed">
-            Speak freely for <strong>3–5 minutes</strong>. The AI monitors your flow and intelligently suggests new topic bubbles to keep your narrative continuous.
+            Speak freely for <strong>3 minutes</strong>. The AI monitors your flow and intelligently suggests new topic bubbles to keep your narrative continuous.
           </p>
         </Link>
 

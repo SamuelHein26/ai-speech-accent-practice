@@ -10,7 +10,7 @@ export default function About() {
       <div className="max-w-3xl text-center">
         {/* Header */}
         <h1 className="text-3xl font-extrabold text-red-600 dark:text-red-500 mb-6 tracking-tight">
-          About AI Accent Training
+          About ComfTalk
         </h1>
 
         {/* Description */}
