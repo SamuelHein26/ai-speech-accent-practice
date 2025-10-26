@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from services.streaming_transcription_service import StreamingTranscriptionService
 from services.openai_service import OpenAIService
-from routers import users, sessions, auth_router, streaming
+from routers import users, sessions, auth_router, streaming, accent
 from schemas import TopicRequest, TopicResponse
 
 # Load environment variables
@@ -44,6 +44,7 @@ app.include_router(users.router)
 app.include_router(sessions.router)
 app.include_router(auth_router.router)
 app.include_router(streaming.router)
+app.include_router(accent.router)
 
 # === Dependency Setup ===
 openai_service = OpenAIService(os.getenv("OPENAI_API_KEY"))

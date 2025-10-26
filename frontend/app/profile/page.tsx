@@ -22,6 +22,7 @@ type SessionSummary = {
   created_at: string;
   duration_seconds: number | null;
   final_transcript: string | null;
+  filler_word_count: number | null;
   audio_available: boolean;
 };
 
@@ -36,6 +37,8 @@ export default function ProfilePage() {
   const [showPassword, setShowPassword] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -96,6 +99,44 @@ export default function ProfilePage() {
   }, [profile]);
 
   const recentHistory = useMemo(() => history.slice(0, 5), [history]);
+
+  const handleDeleteRecording = async (sessionId: string) => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setDeleteError("Please log in again to delete recordings.");
+      return;
+    }
+
+    setDeleteError(null);
+    setDeletingId(sessionId);
+
+    try {
+      const response = await fetch(`${API_BASE}/session/${sessionId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        const detail = (await response.json().catch(() => ({}))) as { detail?: string };
+        throw new Error(detail.detail || "Failed to delete recording.");
+      }
+
+      setHistory((prev) => prev.filter((session) => session.session_id !== sessionId));
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              total_sessions: Math.max(0, prev.total_sessions - 1),
+            }
+          : prev
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to delete recording.";
+      setDeleteError(message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleUpdate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -260,22 +301,39 @@ export default function ProfilePage() {
                 {recentHistory.map((session) => (
                   <li
                     key={session.session_id}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3"
                   >
-                    <div>
+                    <div className="space-y-1">
                       <p className="font-medium text-gray-800 dark:text-gray-200">
                         {new Date(session.created_at).toLocaleString()}
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
                         {session.final_transcript || "Transcript unavailable"}
                       </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Filler words: {typeof session.filler_word_count === "number" ? session.filler_word_count : "—"}
+                      </p>
                     </div>
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                      {session.duration_seconds ? `${session.duration_seconds}s` : "Duration unknown"}
-                    </span>
+                    <div className="flex flex-col sm:items-end gap-2">
+                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                        {session.duration_seconds ? `${session.duration_seconds}s` : "Duration unknown"}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteRecording(session.session_id)}
+                        disabled={deletingId === session.session_id}
+                        className="self-start sm:self-end px-3 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {deletingId === session.session_id ? "Removing..." : "Delete"}
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
+            )}
+            {deleteError && (
+              <p className="mt-4 text-sm text-red-500" role="alert">
+                {deleteError}
+              </p>
             )}
           </section>
         </div>

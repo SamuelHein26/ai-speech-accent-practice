@@ -32,9 +32,12 @@ class S3StorageConfig:
         if prefix.endswith("/"):
             prefix = prefix[:-1]
         
+        bucket = os.getenv("S3_BUCKET") or os.getenv("S3_BUCKET_NAME")
+        region = os.getenv("AWS_REGION") or os.getenv("S3_REGION") or "us-east-1"
+
         return cls(
-            bucket=os.getenv("S3_BUCKET_NAME"),
-            region=os.getenv("S3_REGION", "us-east-1"),
+            bucket=bucket,
+            region=region,
             access_key=os.getenv("AWS_ACCESS_KEY_ID"),
             secret_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
             prefix=prefix,
@@ -98,6 +101,32 @@ class S3Storage:
         except (ClientError, BotoCoreError) as e:
             raise StorageError(f"S3 upload failed: {str(e)}")
 
+    async def upload_audio_bytes(
+        self,
+        object_key: str,
+        data: bytes,
+        *,
+        content_type: str = "audio/webm",
+    ) -> str:
+        """Upload in-memory bytes to S3 and return the stored key."""
+
+        if not self.is_configured():
+            raise StorageError("S3 storage is not configured")
+
+        final_key = self._apply_prefix(object_key)
+        client = self._get_client()
+
+        try:
+            client.put_object(
+                Bucket=self.config.bucket,
+                Key=final_key,
+                Body=data,
+                ContentType=content_type,
+            )
+            return final_key
+        except (ClientError, BotoCoreError) as e:
+            raise StorageError(f"S3 upload failed: {str(e)}")
+
     async def download_audio(self, stored_key: str) -> bytes:
         """Fetch and return the raw audio bytes for stored_key."""
         if not self.is_configured():
@@ -132,6 +161,21 @@ class S3Storage:
             return url
         except (ClientError, BotoCoreError) as e:
             raise StorageError(f"Failed to generate presigned URL: {str(e)}")
+
+    async def delete_audio(self, stored_key: str) -> None:
+        """Delete the object identified by stored_key from storage."""
+        if not self.is_configured():
+            raise StorageError("S3 storage is not configured")
+
+        client = self._get_client()
+
+        try:
+            client.delete_object(
+                Bucket=self.config.bucket,
+                Key=stored_key,
+            )
+        except (ClientError, BotoCoreError) as e:
+            raise StorageError(f"Failed to delete stored audio: {str(e)}")
 
     def _apply_prefix(self, object_key: str) -> str:
         """Apply the configured prefix to the object key."""
