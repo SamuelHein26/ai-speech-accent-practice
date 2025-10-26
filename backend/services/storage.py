@@ -32,9 +32,12 @@ class S3StorageConfig:
         if prefix.endswith("/"):
             prefix = prefix[:-1]
         
+        bucket = os.getenv("S3_BUCKET") or os.getenv("S3_BUCKET_NAME")
+        region = os.getenv("AWS_REGION") or os.getenv("S3_REGION") or "us-east-1"
+
         return cls(
-            bucket=os.getenv("S3_BUCKET_NAME"),
-            region=os.getenv("S3_REGION", "us-east-1"),
+            bucket=bucket,
+            region=region,
             access_key=os.getenv("AWS_ACCESS_KEY_ID"),
             secret_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
             prefix=prefix,
@@ -93,6 +96,32 @@ class S3Storage:
                     'ContentType': 'audio/wav',
                     'ACL': 'private',  # Keep files private, use presigned URLs
                 }
+            )
+            return final_key
+        except (ClientError, BotoCoreError) as e:
+            raise StorageError(f"S3 upload failed: {str(e)}")
+
+    async def upload_audio_bytes(
+        self,
+        object_key: str,
+        data: bytes,
+        *,
+        content_type: str = "audio/webm",
+    ) -> str:
+        """Upload in-memory bytes to S3 and return the stored key."""
+
+        if not self.is_configured():
+            raise StorageError("S3 storage is not configured")
+
+        final_key = self._apply_prefix(object_key)
+        client = self._get_client()
+
+        try:
+            client.put_object(
+                Bucket=self.config.bucket,
+                Key=final_key,
+                Body=data,
+                ContentType=content_type,
             )
             return final_key
         except (ClientError, BotoCoreError) as e:

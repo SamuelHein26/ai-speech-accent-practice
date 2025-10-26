@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr
 
@@ -57,3 +58,17 @@ class SessionSummary(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class AccentWordFeedback(BaseModel):
+    text: str
+    status: Literal["ok", "bad", "accent_mismatch"]
+    note: Optional[str] = None
+
+
+class AccentTrainingResponse(BaseModel):
+    attemptId: str
+    score: float
+    words: List[AccentWordFeedback]
+    tips: str
+    transcript: str
