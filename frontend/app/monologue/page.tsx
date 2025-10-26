@@ -6,7 +6,7 @@ import LiveWaveform from "../components/LiveWaveform";
 
 /** ---- API response types (strict typing; no any) ---- */
 type StartSessionResponse = { session_id: string; is_guest: boolean };
-type FinalizeResponse = { final: string; audio_url?: string };
+type FinalizeResponse = { final: string; filler_word_count: number; audio_url?: string };
 type TopicResponse = { topics: string[] };
 
 /** ---- AudioContext factory (WebAudio init w/ SR cfg) ---- */
@@ -65,6 +65,7 @@ export default function MonologuePage() {
   const [isRecording, setIsRecording] = useState(false); // mic capture active flag
   const [isProcessing, setIsProcessing] = useState(false); // post-stop finalize in-flight
   const [finalTranscript, setFinalTranscript] = useState(""); // final ASR text
+  const [fillerWordCount, setFillerWordCount] = useState<number | null>(null); // filler words detected
   const [audioUrl, setAudioUrl] = useState<string | null>(null); // blob playback URL
   const [error, setError] = useState<string | null>(null); // fatal UX err surfacing
   const [suggestions, setSuggestions] = useState<string[]>([]); // topic prompt list
@@ -328,6 +329,7 @@ export default function MonologuePage() {
     // reset UI/UX state for fresh session
     setError(null);
     setFinalTranscript("");
+    setFillerWordCount(null);
     setLiveCommitted("");
     setLivePartial("");
     lastFinalRef.current = "";
@@ -616,6 +618,7 @@ export default function MonologuePage() {
           data.final ||
             "Transcription incomplete."
         );
+        setFillerWordCount(data.filler_word_count ?? null);
         setAudioUrl(
           data.audio_url ||
             URL.createObjectURL(blob)
@@ -853,6 +856,11 @@ export default function MonologuePage() {
               <h3 className="text-lg font-semibold mb-2">
                 Final Transcript
               </h3>
+              {fillerWordCount !== null && (
+                <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                  Filler words detected: <span className="font-semibold">{fillerWordCount}</span>
+                </p>
+              )}
               <p className="whitespace-pre-line text-sm leading-relaxed text-gray-800 dark:text-gray-200">
                 {finalTranscript}
               </p>

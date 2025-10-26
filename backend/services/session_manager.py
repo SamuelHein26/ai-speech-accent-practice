@@ -53,6 +53,7 @@ class SessionManager:
         transcript_text: str,
         wav_path: str,
         duration_seconds: int | None,
+        filler_word_count: int | None,
     ) -> None:
         """
         Persist or purge after transcription.
@@ -80,6 +81,7 @@ class SessionManager:
         # Store metadata on session row
         row.final_transcript = transcript_text or None
         row.duration_seconds = duration_seconds
+        row.filler_word_count = filler_word_count
 
         # Persist audio artifact either to Supabase storage (preferred) or the local
         # archive directory when Supabase is not configured (local development).
@@ -103,7 +105,7 @@ class SessionManager:
                 row.audio_path = str(destination)
 
             await db.commit()
-        except SupabaseStorageError:
+        except StorageError:
             await db.rollback()
             raise
         except Exception:

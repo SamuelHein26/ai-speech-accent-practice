@@ -41,6 +41,7 @@ class Session(Base):
     final_transcript = Column(Text, nullable=True)
     audio_path = Column(String(512), nullable=True)
     duration_seconds = Column(Integer, nullable=True)
+    filler_word_count = Column(Integer, nullable=True)
 
     # ✅ relationship only (no accidental "Column =" assignment)
     user = relationship("User", back_populates="sessions")

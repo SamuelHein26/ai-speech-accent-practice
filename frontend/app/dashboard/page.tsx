@@ -13,6 +13,7 @@ type SessionSummary = {
   created_at: string;
   duration_seconds: number | null;
   final_transcript: string | null;
+  filler_word_count: number | null;
   audio_available: boolean;
 };
 
@@ -24,6 +25,8 @@ export default function DashboardPage() {
   const [audioError, setAudioError] = useState<string | null>(null);
   const [audioSources, setAudioSources] = useState<Record<string, string>>({});
   const audioSourcesRef = useRef<Record<string, string>>({});
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     audioSourcesRef.current = audioSources;
@@ -120,6 +123,48 @@ export default function DashboardPage() {
     []
   );
 
+  const handleDeleteRecording = useCallback(
+    async (sessionId: string) => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setDeleteError("Please log in again to delete recordings.");
+        return;
+      }
+
+      setDeleteError(null);
+      setDeletingId(sessionId);
+
+      try {
+        const response = await fetch(`${API_BASE}/session/${sessionId}`, {
+          method: "DELETE",
+          headers: { Authorization: "Bearer " + token },
+        });
+
+        if (!response.ok) {
+          const detail = (await response.json().catch(() => ({}))) as { detail?: string };
+          throw new Error(detail.detail || "Failed to delete recording.");
+        }
+
+        setHistory((prev) => prev.filter((session) => session.session_id !== sessionId));
+        setAudioSources((prev) => {
+          const next = { ...prev };
+          if (next[sessionId]) {
+            URL.revokeObjectURL(next[sessionId]);
+            delete next[sessionId];
+          }
+          audioSourcesRef.current = next;
+          return next;
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unable to delete recording.";
+        setDeleteError(message);
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    []
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-red-50 via-white to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
       <Header />
@@ -153,10 +198,16 @@ export default function DashboardPage() {
                         Transcript
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                        Filler words
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                         Duration
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                         Audio
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                        Actions
                       </th>
                     </tr>
                   </thead>
@@ -168,14 +219,19 @@ export default function DashboardPage() {
                           <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-200">
                             {new Date(session.created_at).toLocaleString()}
                           </td>
-                          <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
-                            <span className="block max-w-sm whitespace-pre-line">
-                              {session.final_transcript || "Transcript unavailable"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
-                            {session.duration_seconds ? `${session.duration_seconds}s` : "Unknown"}
-                          </td>
+                        <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                          <span className="block max-w-sm whitespace-pre-line">
+                            {session.final_transcript || "Transcript unavailable"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-300">
+                          {typeof session.filler_word_count === "number"
+                            ? session.filler_word_count
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                          {session.duration_seconds ? `${session.duration_seconds}s` : "Unknown"}
+                        </td>
                           <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400 space-y-2">
                             {session.audio_available ? (
                               <>
@@ -201,6 +257,15 @@ export default function DashboardPage() {
                               <span className="text-xs text-gray-500">Audio unavailable</span>
                             )}
                           </td>
+                          <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                            <button
+                              onClick={() => handleDeleteRecording(session.session_id)}
+                              disabled={deletingId === session.session_id}
+                              className="px-4 py-2 rounded-lg border border-red-200 text-red-600 font-medium hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {deletingId === session.session_id ? "Removing..." : "Delete"}
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -210,6 +275,11 @@ export default function DashboardPage() {
             )}
             {audioError && (
               <p className="mt-4 text-center text-sm text-red-500">{audioError}</p>
+            )}
+            {deleteError && (
+              <p className="mt-2 text-center text-sm text-red-500" role="alert">
+                {deleteError}
+              </p>
             )}
           </section>
         </div>
