@@ -29,6 +29,30 @@ class S3AudioStorage:
     def is_configured(self) -> bool:
         return self._storage.is_configured()
 
+    def _write_local(self, object_key: str, data: bytes) -> str:
+        destination = self._local_dir / object_key
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
+        return str(destination)
+
+    def put_object_bytes(
+        self,
+        object_key: str,
+        data: bytes,
+        *,
+        content_type: str = "audio/webm",
+    ) -> str:
+        """Synchronously persist audio bytes and return the storage location."""
+
+        if self.is_configured():
+            return self._storage.put_object_bytes(
+                object_key,
+                data,
+                content_type=content_type,
+            )
+
+        return self._write_local(object_key, data)
+
     async def store_bytes(
         self,
         object_key: str,
@@ -49,10 +73,7 @@ class S3AudioStorage:
                 raise
 
         # Local development fallback
-        destination = self._local_dir / object_key
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(data)
-        return str(destination)
+        return self._write_local(object_key, data)
 
     def presigned_url(self, object_key: str, *, expires_in: int = 3600) -> str:
         if not self.is_configured():

@@ -24,6 +24,7 @@ from services.accent_transcriber import (      # ASR wrapper
     AccentTranscriptionError,
 )
 from services.s3_audio_storage import S3AudioStorage  # S3 PUT + key gen
+from services.storage import StorageError
 
 
 router = APIRouter(prefix="/accent", tags=["accent"])
@@ -89,16 +90,18 @@ async def train_accent(
     attempt_uuid = uuid.uuid4()
     object_key = f"recordings/{attempt_uuid}{ext}"
 
-    # upload to S3 (network I/O). If your S3 client is sync/boto3, run it in a thread.
+    # upload audio to storage (S3 or local fallback) without blocking the event loop.
     try:
-        await asyncio.to_thread(
-            storage.put_object_bytes,     # we'll define this helper in S3AudioStorage
-            audio_bytes,
+        stored_audio_path = await asyncio.to_thread(
+            storage.put_object_bytes,
             object_key,
-            audio.content_type or "application/octet-stream",
+            audio_bytes,
+            content_type=audio.content_type or "application/octet-stream",
         )
+    except StorageError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"S3 upload failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail=f"Audio storage failed: {exc}") from exc
 
     # === 2. Transcribe audio with word-level confidences =======================
     transcriber = _get_transcriber()
@@ -150,7 +153,7 @@ async def train_accent(
         user_id=db_user_id,
         accent_target=accent,
         expected_text=text,
-        audio_path=object_key,
+        audio_path=stored_audio_path,
         transcript_raw=transcript_text,
         feedback_json=[item.to_response() for item in feedback_items],
         overall_score=score,
