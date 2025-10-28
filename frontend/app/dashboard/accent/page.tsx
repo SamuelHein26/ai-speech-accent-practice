@@ -31,6 +31,7 @@ export default function AccentDashboardPage() {
     Record<string, { url: string; mimeType: string | null }>
   >({});
   const audioSourcesRef = useRef<Record<string, { url: string; mimeType: string | null }>>({});
+  const pendingRevokesRef = useRef<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -41,14 +42,79 @@ export default function AccentDashboardPage() {
   }, []);
 
   useEffect(() => {
-    audioSourcesRef.current = audioSources;
-  }, [audioSources]);
-
-  useEffect(() => {
     return () => {
+      if (pendingRevokesRef.current.length) {
+        pendingRevokesRef.current.forEach((url) => {
+          if (url.startsWith("blob:")) {
+            URL.revokeObjectURL(url);
+          }
+        });
+        pendingRevokesRef.current = [];
+      }
       Object.values(audioSourcesRef.current).forEach(({ url }) => URL.revokeObjectURL(url));
     };
   }, []);
+
+  useEffect(() => {
+    if (!pendingRevokesRef.current.length) {
+      return;
+    }
+    const urls = pendingRevokesRef.current.splice(0);
+    urls.forEach((url) => {
+      if (url.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+      }
+    });
+  }, [audioSources]);
+
+  const queueForRevoke = useCallback((url: string | null | undefined) => {
+    if (url && url.startsWith("blob:")) {
+      pendingRevokesRef.current.push(url);
+    }
+  }, []);
+
+  const upsertAudioSource = useCallback(
+    (attemptId: string, nextValue: { url: string; mimeType: string | null }) => {
+      setAudioSources((prev) => {
+        const existing = prev[attemptId];
+        if (
+          existing &&
+          existing.url === nextValue.url &&
+          existing.mimeType === nextValue.mimeType
+        ) {
+          audioSourcesRef.current = prev;
+          return prev;
+        }
+
+        const next = { ...prev, [attemptId]: nextValue };
+        if (existing?.url && existing.url !== nextValue.url) {
+          queueForRevoke(existing.url);
+        }
+        audioSourcesRef.current = next;
+        return next;
+      });
+    },
+    [queueForRevoke]
+  );
+
+  const removeAudioSource = useCallback(
+    (attemptId: string) => {
+      setAudioSources((prev) => {
+        const existing = prev[attemptId];
+        if (!existing) {
+          audioSourcesRef.current = prev;
+          return prev;
+        }
+
+        const next = { ...prev };
+        delete next[attemptId];
+        queueForRevoke(existing.url);
+        audioSourcesRef.current = next;
+        return next;
+      });
+    },
+    [queueForRevoke]
+  );
 
   useEffect(() => {
     setCurrentPage((prev) => {
@@ -141,15 +207,7 @@ export default function AccentDashboardPage() {
         );
 
         const objectUrl = URL.createObjectURL(blob);
-        setAudioSources((prev) => {
-          const next = { ...prev };
-          if (next[attemptId]) {
-            URL.revokeObjectURL(next[attemptId].url);
-          }
-          next[attemptId] = { url: objectUrl, mimeType };
-          return next;
-        });
-        audioSourcesRef.current[attemptId] = { url: objectUrl, mimeType };
+        upsertAudioSource(attemptId, { url: objectUrl, mimeType });
       } catch (err) {
         if (err instanceof AuthExpiredError) {
           handleSessionExpired();
@@ -163,7 +221,7 @@ export default function AccentDashboardPage() {
         setLoadingAudioId(null);
       }
     },
-    [handleSessionExpired]
+    [handleSessionExpired, upsertAudioSource]
   );
 
   const handleDeleteAttempt = useCallback(
@@ -198,15 +256,7 @@ export default function AccentDashboardPage() {
         }
 
         setAccentHistory((prev) => prev.filter((attempt) => attempt.attempt_id !== attemptId));
-        setAudioSources((prev) => {
-          const next = { ...prev };
-          if (next[attemptId]) {
-            URL.revokeObjectURL(next[attemptId].url);
-            delete next[attemptId];
-          }
-          audioSourcesRef.current = next;
-          return next;
-        });
+        removeAudioSource(attemptId);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unable to delete accent attempt.";
         setDeleteError(message);
@@ -214,7 +264,7 @@ export default function AccentDashboardPage() {
         setDeletingId(null);
       }
     },
-    [handleSessionExpired]
+    [handleSessionExpired, removeAudioSource]
   );
 
   return (
