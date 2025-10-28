@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { API_BASE as ENV_API_BASE } from "../../lib/api";
 import { AuthExpiredError, fetchAccentRecording } from "../listenRecording";
