@@ -1,16 +1,7 @@
-// app/lib/api.ts
-// Purpose: Centralized, typed HTTP client bound to NEXT_PUBLIC_API_BASE_URL.
-// Notes:
-// - Uses native fetch (built into Next.js runtime).
-// - Adds JSON & error handling. Avoids "any" by using generics.
-
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL as string;
 
 if (!API_BASE) {
-  // Early failure helps catch misconfigured env in local/preview/prod.
-  // In production this will never log to browser console before usage.
-  // It's still good to keep for debugging during dev.
-  // console.warn("NEXT_PUBLIC_API_BASE_URL is not defined");
+
 }
 
 type FetchOptions = Omit<RequestInit, "body"> & { body?: BodyInit | null };

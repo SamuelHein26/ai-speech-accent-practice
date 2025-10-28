@@ -47,7 +47,7 @@ class Session(Base):
     duration_seconds = Column(Integer, nullable=True)
     filler_word_count = Column(Integer, nullable=True)
 
-    # ✅ relationship only (no accidental "Column =" assignment)
+    #  relationship only (no accidental "Column =" assignment)
     user = relationship("User", back_populates="sessions")
 
 
