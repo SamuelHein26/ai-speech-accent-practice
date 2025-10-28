@@ -28,6 +28,7 @@ export default function MonologueDashboardPage() {
     Record<string, { url: string; mimeType: string | null }>
   >({});
   const audioSourcesRef = useRef<Record<string, { url: string; mimeType: string | null }>>({});
+  const pendingRevokesRef = useRef<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -38,14 +39,79 @@ export default function MonologueDashboardPage() {
   }, []);
 
   useEffect(() => {
-    audioSourcesRef.current = audioSources;
-  }, [audioSources]);
-
-  useEffect(() => {
     return () => {
+      if (pendingRevokesRef.current.length) {
+        pendingRevokesRef.current.forEach((url) => {
+          if (url.startsWith("blob:")) {
+            URL.revokeObjectURL(url);
+          }
+        });
+        pendingRevokesRef.current = [];
+      }
       Object.values(audioSourcesRef.current).forEach(({ url }) => URL.revokeObjectURL(url));
     };
   }, []);
+
+  useEffect(() => {
+    if (!pendingRevokesRef.current.length) {
+      return;
+    }
+    const urls = pendingRevokesRef.current.splice(0);
+    urls.forEach((url) => {
+      if (url.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+      }
+    });
+  }, [audioSources]);
+
+  const queueForRevoke = useCallback((url: string | null | undefined) => {
+    if (url && url.startsWith("blob:")) {
+      pendingRevokesRef.current.push(url);
+    }
+  }, []);
+
+  const upsertAudioSource = useCallback(
+    (sessionId: string, nextValue: { url: string; mimeType: string | null }) => {
+      setAudioSources((prev) => {
+        const existing = prev[sessionId];
+        if (
+          existing &&
+          existing.url === nextValue.url &&
+          existing.mimeType === nextValue.mimeType
+        ) {
+          audioSourcesRef.current = prev;
+          return prev;
+        }
+
+        const next = { ...prev, [sessionId]: nextValue };
+        if (existing?.url && existing.url !== nextValue.url) {
+          queueForRevoke(existing.url);
+        }
+        audioSourcesRef.current = next;
+        return next;
+      });
+    },
+    [queueForRevoke]
+  );
+
+  const removeAudioSource = useCallback(
+    (sessionId: string) => {
+      setAudioSources((prev) => {
+        const existing = prev[sessionId];
+        if (!existing) {
+          audioSourcesRef.current = prev;
+          return prev;
+        }
+
+        const next = { ...prev };
+        delete next[sessionId];
+        queueForRevoke(existing.url);
+        audioSourcesRef.current = next;
+        return next;
+      });
+    },
+    [queueForRevoke]
+  );
 
   useEffect(() => {
     setCurrentPage((prev) => {
@@ -138,15 +204,7 @@ export default function MonologueDashboardPage() {
         );
 
         const objectUrl = URL.createObjectURL(blob);
-        setAudioSources((prev) => {
-          const next = { ...prev };
-          if (next[sessionId]) {
-            URL.revokeObjectURL(next[sessionId].url);
-          }
-          next[sessionId] = { url: objectUrl, mimeType };
-          return next;
-        });
-        audioSourcesRef.current[sessionId] = { url: objectUrl, mimeType };
+        upsertAudioSource(sessionId, { url: objectUrl, mimeType });
       } catch (err) {
         if (err instanceof AuthExpiredError) {
           handleSessionExpired();
@@ -159,7 +217,7 @@ export default function MonologueDashboardPage() {
         setLoadingAudioId(null);
       }
     },
-    [handleSessionExpired]
+    [handleSessionExpired, upsertAudioSource]
   );
 
   const handleDeleteRecording = useCallback(
@@ -194,15 +252,7 @@ export default function MonologueDashboardPage() {
         }
 
         setHistory((prev) => prev.filter((session) => session.session_id !== sessionId));
-        setAudioSources((prev) => {
-          const next = { ...prev };
-          if (next[sessionId]) {
-            URL.revokeObjectURL(next[sessionId].url);
-            delete next[sessionId];
-          }
-          audioSourcesRef.current = next;
-          return next;
-        });
+        removeAudioSource(sessionId);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unable to delete recording.";
         setDeleteError(message);
@@ -210,7 +260,7 @@ export default function MonologueDashboardPage() {
         setDeletingId(null);
       }
     },
-    [handleSessionExpired]
+    [handleSessionExpired, removeAudioSource]
   );
 
   return (
