@@ -427,7 +427,6 @@ export default function MonologuePage() {
   ]);
 
   /** === PCM conversion utils (Float32 -> Int16LE, resample to 16kHz mono) === */
-  // Float32 [-1.0..1.0] → Int16 LE PCM
   const floatTo16BitPCM = (input: Float32Array): Int16Array => {
     const out = new Int16Array(input.length);
     for (let i = 0; i < input.length; i++) {
@@ -439,7 +438,6 @@ export default function MonologuePage() {
     return out;
   };
 
-  // Downsample arbitrary SR -> 16kHz mono Int16
   const downsampleTo16k = (
     buffer: Float32Array,
     inputRate: number
