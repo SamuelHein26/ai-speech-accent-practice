@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AuthExpiredError, fetchMonologueRecording } from "../../listenRecording";
 
-type PageProps = {
+type ViewRecordingPageProps = {
   params: {
     sessionId: string;
   };
@@ -21,7 +21,7 @@ type SessionSummary = {
   audio_available: boolean;
 };
 
-export default function ViewMonologueRecordingPage({ params }: PageProps) {
+export default function ViewMonologueRecordingPage({ params }: ViewRecordingPageProps) {
   const { sessionId } = params;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
