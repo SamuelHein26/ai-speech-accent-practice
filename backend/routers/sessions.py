@@ -2,12 +2,10 @@
 import asyncio
 import os
 import re
-from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
-from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -260,28 +258,25 @@ async def get_session_audio(
     if not session.audio_path:
         raise HTTPException(status_code=404, detail="Audio file unavailable")
 
-    # Download from S3 and stream through backend (no S3 CORS needed)
-    if storage.is_configured():
-        try:
+    # Download from S3 (or read locally) and return the raw bytes directly.
+    try:
+        if storage.is_configured():
             audio_bytes = await storage.download_audio(session.audio_path)
-            audio_stream = BytesIO(audio_bytes)
-        except StorageError as exc:
-            raise HTTPException(status_code=502, detail=str(exc))
-    else:
-        # Local fallback
-        file_path = Path(session.audio_path)
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="Audio file unavailable")
-        audio_stream = file_path.open("rb")
+        else:
+            file_path = Path(session.audio_path)
+            if not file_path.exists():
+                raise HTTPException(status_code=404, detail="Audio file unavailable")
+            audio_bytes = file_path.read_bytes()
+    except StorageError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
 
-    return StreamingResponse(
-        audio_stream,
-        media_type="audio/wav",
-        headers={
-            "Cache-Control": "no-store",
-            "Content-Disposition": f"inline; filename={session.session_id}.wav",
-        },
-    )
+    headers = {
+        "Cache-Control": "no-store",
+        "Content-Disposition": f"inline; filename={session.session_id}.wav",
+        "Content-Length": str(len(audio_bytes)),
+    }
+
+    return Response(content=audio_bytes, media_type="audio/wav", headers=headers)
 
 
 @router.delete("/{session_id}", status_code=204)
