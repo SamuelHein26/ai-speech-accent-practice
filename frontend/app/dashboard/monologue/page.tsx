@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { API_BASE as ENV_API_BASE } from "../../lib/api";
-import { AuthExpiredError, fetchMonologueRecording } from "../listenRecording";
 
 const API_BASE = ENV_API_BASE || "http://127.0.0.1:8000";
 const PAGE_SIZE = 5;
@@ -22,12 +22,6 @@ export default function MonologueDashboardPage() {
   const [history, setHistory] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
-  const [audioError, setAudioError] = useState<string | null>(null);
-  const [audioSources, setAudioSources] = useState<
-    Record<string, { url: string; mimeType: string | null }>
-  >({});
-  const audioSourcesRef = useRef<Record<string, { url: string; mimeType: string | null }>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,16 +29,6 @@ export default function MonologueDashboardPage() {
   const handleSessionExpired = useCallback(() => {
     localStorage.removeItem("token");
     window.dispatchEvent(new Event("authChange"));
-  }, []);
-
-  useEffect(() => {
-    audioSourcesRef.current = audioSources;
-  }, [audioSources]);
-
-  useEffect(() => {
-    return () => {
-      Object.values(audioSourcesRef.current).forEach(({ url }) => URL.revokeObjectURL(url));
-    };
   }, []);
 
   useEffect(() => {
@@ -104,64 +88,6 @@ export default function MonologueDashboardPage() {
     [totalPages]
   );
 
-  const handleLoadAudio = useCallback(
-    async (sessionId: string) => {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setAudioError("Please log in again to load this recording.");
-        return;
-      }
-
-      if (audioSourcesRef.current[sessionId]) {
-        setAudioError(null);
-        return;
-      }
-
-      setLoadingAudioId(sessionId);
-      setAudioError(null);
-
-      try {
-        const { summary, blob, mimeType } = await fetchMonologueRecording(sessionId, token);
-
-        setHistory((prev) =>
-          prev.map((session) =>
-            session.session_id === sessionId
-              ? {
-                  ...session,
-                  duration_seconds: summary.duration_seconds,
-                  final_transcript: summary.final_transcript,
-                  filler_word_count: summary.filler_word_count,
-                  audio_available: summary.audio_available,
-                }
-              : session
-          )
-        );
-
-        const objectUrl = URL.createObjectURL(blob);
-        setAudioSources((prev) => {
-          const next = { ...prev };
-          if (next[sessionId]) {
-            URL.revokeObjectURL(next[sessionId].url);
-          }
-          next[sessionId] = { url: objectUrl, mimeType };
-          return next;
-        });
-        audioSourcesRef.current[sessionId] = { url: objectUrl, mimeType };
-      } catch (err) {
-        if (err instanceof AuthExpiredError) {
-          handleSessionExpired();
-          setAudioError(err.message);
-        } else {
-          const message = err instanceof Error ? err.message : "Unable to fetch audio.";
-          setAudioError(message);
-        }
-      } finally {
-        setLoadingAudioId(null);
-      }
-    },
-    [handleSessionExpired]
-  );
-
   const handleDeleteRecording = useCallback(
     async (sessionId: string) => {
       if (!window.confirm("Delete this monologue recording? This action cannot be undone.")) {
@@ -194,15 +120,6 @@ export default function MonologueDashboardPage() {
         }
 
         setHistory((prev) => prev.filter((session) => session.session_id !== sessionId));
-        setAudioSources((prev) => {
-          const next = { ...prev };
-          if (next[sessionId]) {
-            URL.revokeObjectURL(next[sessionId].url);
-            delete next[sessionId];
-          }
-          audioSourcesRef.current = next;
-          return next;
-        });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unable to delete recording.";
         setDeleteError(message);
@@ -255,18 +172,12 @@ export default function MonologueDashboardPage() {
                     Duration
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                    Audio
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                 {paginatedHistory.map((session) => {
-                  const audioEntry = audioSources[session.session_id];
-                  const audioUrl = audioEntry?.url;
-                  const audioType = audioEntry?.mimeType || "audio/wav";
                   return (
                     <tr key={session.session_id} className="hover:bg-red-50/60 dark:hover:bg-gray-800/60 transition">
                       <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-200">
@@ -283,39 +194,28 @@ export default function MonologueDashboardPage() {
                       <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
                         {session.duration_seconds ? `${session.duration_seconds}s` : "Unknown"}
                       </td>
-                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400 space-y-2">
-                        {session.audio_available ? (
-                          <>
-                            <button
-                              className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-60"
-                              onClick={() => handleLoadAudio(session.session_id)}
-                              disabled={loadingAudioId === session.session_id}
-                            >
-                              {loadingAudioId === session.session_id
-                                ? "Loading..."
-                                : audioUrl
-                                ? "Reload recording"
-                                : "Listen recording"}
-                            </button>
-                            {audioUrl && (
-                              <audio controls className="w-full">
-                                <source src={audioUrl} type={audioType} />
-                                Your browser does not support audio playback.
-                              </audio>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-xs text-gray-500">Audio unavailable</span>
-                        )}
-                      </td>
                       <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
-                        <button
-                          onClick={() => handleDeleteRecording(session.session_id)}
-                          disabled={deletingId === session.session_id}
-                          className="px-4 py-2 rounded-lg border border-red-200 text-red-600 font-medium hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          {deletingId === session.session_id ? "Removing..." : "Delete"}
-                        </button>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          {session.audio_available ? (
+                            <Link
+                              href={`/dashboard/monologue/${session.session_id}`}
+                              className="px-4 py-2 rounded-lg bg-red-600 text-center font-medium text-white transition hover:bg-red-700"
+                            >
+                              View recording
+                            </Link>
+                          ) : (
+                            <span className="px-4 py-2 rounded-lg bg-gray-200 text-center text-sm font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                              Audio unavailable
+                            </span>
+                          )}
+                          <button
+                            onClick={() => handleDeleteRecording(session.session_id)}
+                            disabled={deletingId === session.session_id}
+                            className="px-4 py-2 rounded-lg border border-red-200 text-red-600 font-medium hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {deletingId === session.session_id ? "Removing..." : "Delete"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -343,9 +243,6 @@ export default function MonologueDashboardPage() {
           </div>
         )}
 
-        {audioError && (
-          <p className="mt-4 text-center text-sm text-red-500">{audioError}</p>
-        )}
         {deleteError && (
           <p className="mt-2 text-center text-sm text-red-500" role="alert">
             {deleteError}

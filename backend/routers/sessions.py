@@ -164,6 +164,44 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.get("/history", response_model=list[SessionSummary])
+async def session_history(
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    stmt = (
+        select(
+            Session.id,
+            Session.session_id,
+            Session.created_at,
+            Session.duration_seconds,
+            Session.final_transcript,
+            Session.filler_word_count,
+            Session.audio_path.isnot(None).label("audio_available"),
+        )
+        .where(Session.user_id == current_user.id)
+        .order_by(Session.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    sessions = result.all()
+
+    return [
+        SessionSummary(
+            id=row.id,
+            session_id=row.session_id,
+            created_at=row.created_at,
+            duration_seconds=row.duration_seconds,
+            final_transcript=row.final_transcript,
+            filler_word_count=row.filler_word_count,
+            audio_available=row.audio_available,
+        )
+        for row in sessions
+    ]
+
+
 @router.get("/{session_id}", response_model=SessionSummary)
 async def session_detail(
     session_id: str,
@@ -201,44 +239,6 @@ async def session_detail(
         filler_word_count=row.filler_word_count,
         audio_available=row.audio_available,
     )
-
-
-@router.get("/history", response_model=list[SessionSummary])
-async def session_history(
-    db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
-):
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    stmt = (
-        select(
-            Session.id,
-            Session.session_id,
-            Session.created_at,
-            Session.duration_seconds,
-            Session.final_transcript,
-            Session.filler_word_count,
-            Session.audio_path.isnot(None).label("audio_available"),
-        )
-        .where(Session.user_id == current_user.id)
-        .order_by(Session.created_at.desc())
-    )
-    result = await db.execute(stmt)
-    sessions = result.all()
-
-    return [
-        SessionSummary(
-            id=row.id,
-            session_id=row.session_id,
-            created_at=row.created_at,
-            duration_seconds=row.duration_seconds,
-            final_transcript=row.final_transcript,
-            filler_word_count=row.filler_word_count,
-            audio_available=row.audio_available,
-        )
-        for row in sessions
-    ]
 
 
 @router.get("/{session_id}/audio")
