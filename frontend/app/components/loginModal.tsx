@@ -33,13 +33,16 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
         body: formData.toString(),
       });
 
-      if (res.status === 401) {
-        throw new Error("Session expired. Please log in again.");
-      }
-
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || "Invalid credentials");
+
+        if (res.status === 401) {
+          const detail =
+            typeof data.detail === "string" ? data.detail : undefined;
+          throw new Error(detail || "Invalid email or password.");
+        }
+
+        throw new Error(data.detail || "Login failed. Please try again.");
       }
 
       const data: { access_token: string } = await res.json();
