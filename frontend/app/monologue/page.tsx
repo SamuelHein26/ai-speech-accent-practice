@@ -201,6 +201,7 @@ export default function MonologuePage() {
   const sessionRef = useRef<string | null>(null); // backend sess ID (guest/user)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null); // browser MediaRecorder handle
   const audioChunks = useRef<Blob[]>([]); // captured audio chunks for upload/finalize
+  const audioUrlRef = useRef<string | null>(null); // track latest blob URL for cleanup
   const timerIdRef = useRef<number | null>(null); // interval id for UI timer
   const timerStartRef = useRef<number | null>(null); // epoch ms when recording started
   const timeLimitTriggeredRef = useRef(false); // tracks whether auto-stop fired
@@ -266,8 +267,35 @@ export default function MonologuePage() {
 
       clearRecordingTimer();
       timerStartRef.current = null;
+
+      const url = audioUrlRef.current;
+      if (url && url.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+      }
     };
   }, [clearRecordingTimer]);
+
+  const applyAudioUrl = useCallback(
+    (
+      nextUrl: string | null,
+      options: { revokePrevious?: boolean } = {}
+    ) => {
+      const { revokePrevious = false } = options;
+      setAudioUrl((prev) => {
+        if (
+          revokePrevious &&
+          prev &&
+          prev.startsWith("blob:") &&
+          prev !== nextUrl
+        ) {
+          URL.revokeObjectURL(prev);
+        }
+        audioUrlRef.current = nextUrl;
+        return nextUrl;
+      });
+    },
+    []
+  );
 
   /** === Activity register: called whenever we get new speech tokens via RT-STT === */
   const registerSpeechActivity = useCallback(() => {
@@ -457,12 +485,7 @@ export default function MonologuePage() {
     setLivePartial("");
     lastFinalRef.current = "";
     lastPartialRef.current = "";
-    setAudioUrl((prev) => {
-      if (prev && prev.startsWith("blob:")) {
-        URL.revokeObjectURL(prev);
-      }
-      return null;
-    });
+    applyAudioUrl(null);
     setSuggestions([]);
     setIsFetchingSuggestions(false);
     setSuggestionError(null);
@@ -774,12 +797,7 @@ export default function MonologuePage() {
         const playbackUrl = data.audio_url
           ? resolveApiUrl(data.audio_url)
           : URL.createObjectURL(blob);
-        setAudioUrl((prev) => {
-          if (prev && prev.startsWith("blob:") && prev !== playbackUrl) {
-            URL.revokeObjectURL(prev);
-          }
-          return playbackUrl;
-        });
+        applyAudioUrl(playbackUrl, { revokePrevious: true });
         audioChunks.current = [];
       }
     } catch (e: unknown) {
@@ -797,7 +815,7 @@ export default function MonologuePage() {
       }
       timeLimitTriggeredRef.current = false;
     }
-  }, [clearRecordingTimer]);
+  }, [applyAudioUrl, clearRecordingTimer]);
 
   /** === JSX === */
   return (

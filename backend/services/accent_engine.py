@@ -39,11 +39,16 @@ class WordFeedback:
     note: Optional[str] = None
     spoken: Optional[str] = None
     confidence: Optional[float] = None
+    issue_code: Optional[str] = None
 
     def to_response(self) -> dict:
         payload = {"text": self.text, "status": self.status}
         if self.note:
             payload["note"] = self.note
+        if self.spoken is not None:
+            payload["spoken"] = self.spoken
+        if self.confidence is not None:
+            payload["confidence"] = self.confidence
         return payload
 
 
@@ -68,6 +73,7 @@ def evaluate_attempt(
 
     feedback: List[WordFeedback] = []
     spoken_index = 0
+    accent_label = accent_target.capitalize()
 
     for expected in expected_tokens:
         stripped_expected = _strip_punct(expected)
@@ -82,7 +88,8 @@ def evaluate_attempt(
                 WordFeedback(
                     text=expected,
                     status="bad",
-                    note="word_missing",
+                    note=f"The word '{expected}' was missing. Include it when you deliver the {accent_label} line.",
+                    issue_code="word_missing",
                 )
             )
             continue
@@ -107,9 +114,13 @@ def evaluate_attempt(
                     WordFeedback(
                         text=expected,
                         status="bad",
-                        note="low_confidence",
+                        note=(
+                            f"'{spoken.word}' sounded unclear (confidence {spoken.confidence:.0%}). "
+                            f"Enunciate it a bit more for {accent_label} English."
+                        ),
                         spoken=spoken.word,
                         confidence=spoken.confidence,
+                        issue_code="low_confidence",
                     )
                 )
         else:
@@ -117,9 +128,13 @@ def evaluate_attempt(
                 WordFeedback(
                     text=expected,
                     status="bad",
-                    note="mismatch",
+                    note=(
+                        f"Heard '{spoken.word}' instead of '{expected}'. "
+                        f"Revisit the {accent_label} pronunciation of '{expected}'."
+                    ),
                     spoken=spoken.word,
                     confidence=spoken.confidence,
+                    issue_code="mismatch",
                 )
             )
 
@@ -145,21 +160,39 @@ def _apply_accent_rules(feedback: Iterable[WordFeedback], accent_target: str) ->
             if stripped.endswith("r") or stripped in ACCENT_R_SENSITIVE:
                 if item.status == "ok" and confidence < 0.92:
                     item.status = "accent_mismatch"
-                    item.note = "Keep the American R pronounced."
-                elif item.status == "bad" and (item.note == "low_confidence"):
+                    item.issue_code = "american_soft_r"
+                    note = f"Keep the American R fully pronounced in '{item.text}'."
+                    if item.spoken:
+                        note += f" It came through closer to '{item.spoken}'."
+                    item.note = note
+                elif item.status == "bad" and item.issue_code == "low_confidence":
                     item.status = "accent_mismatch"
-                    item.note = "Sounded non-rhotic — emphasise the American R."
+                    item.issue_code = "american_soft_r"
+                    note = f"The R in '{item.text}' faded away. Exaggerate it for American English."
+                    if item.spoken:
+                        note += f" We caught it as '{item.spoken}'."
+                    item.note = note
             if stripped in BRITISH_BROAD_A and item.status == "ok" and confidence < 0.9:
                 item.status = "accent_mismatch"
-                item.note = "Open the vowel more for American pronunciation."
+                item.issue_code = "american_broad_a"
+                item.note = (
+                    f"Give '{item.text}' the flatter American vowel. Avoid the rounded British 'a' sound."
+                )
 
         elif accent_target == "british":
             if stripped in BRITISH_FLAP_WORDS and confidence > 0.88:
                 item.status = "accent_mismatch"
-                item.note = "Use a crisp T instead of an American flap."
+                item.issue_code = "british_flap_t"
+                item.note = (
+                    f"Snap the /t/ in '{item.text}' for British English instead of using an American flap."
+                )
             elif (stripped.endswith("r") or stripped in ACCENT_R_SENSITIVE) and confidence > 0.9:
                 item.status = "accent_mismatch"
-                item.note = "Soften the ending R for a British sound."
+                item.issue_code = "british_r"
+                note = f"Soften the ending R in '{item.text}' to keep the British tone."
+                if item.spoken:
+                    note += f" It sounded closer to the American '{item.spoken}'."
+                item.note = note
 
 
 def build_tip(feedback: Sequence[WordFeedback], accent_target: str) -> str:
@@ -178,9 +211,9 @@ def build_tip(feedback: Sequence[WordFeedback], accent_target: str) -> str:
     general_issues = [item for item in feedback if item.status == "bad"]
     if general_issues:
         word = general_issues[0]
-        if word.note == "low_confidence":
+        if word.issue_code == "low_confidence":
             return f"Articulate \"{word.text}\" a bit more clearly for the microphone."
-        if word.note == "word_missing":
+        if word.issue_code == "word_missing":
             return f"Don't forget to include \"{word.text}\" when you read the prompt."
         return f"Double-check the wording around \"{word.text}\" next time."
 

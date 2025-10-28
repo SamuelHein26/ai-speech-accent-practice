@@ -63,6 +63,8 @@ class AccentWordFeedback(BaseModel):
     text: str
     status: Literal["ok", "bad", "accent_mismatch"]
     note: Optional[str] = None
+    spoken: Optional[str] = None
+    confidence: Optional[float] = None
 
 
 class AccentTrainingResponse(BaseModel):
