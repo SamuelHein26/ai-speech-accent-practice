@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { API_BASE as ENV_API_BASE } from "../../lib/api";
 import { AuthExpiredError, fetchAccentRecording } from "../listenRecording";
@@ -31,6 +31,7 @@ export default function AccentDashboardPage() {
     Record<string, { url: string; mimeType: string | null }>
   >({});
   const audioSourcesRef = useRef<Record<string, { url: string; mimeType: string | null }>>({});
+  const pendingRevokesRef = useRef<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -41,14 +42,79 @@ export default function AccentDashboardPage() {
   }, []);
 
   useEffect(() => {
-    audioSourcesRef.current = audioSources;
-  }, [audioSources]);
-
-  useEffect(() => {
     return () => {
+      if (pendingRevokesRef.current.length) {
+        pendingRevokesRef.current.forEach((url) => {
+          if (url.startsWith("blob:")) {
+            URL.revokeObjectURL(url);
+          }
+        });
+        pendingRevokesRef.current = [];
+      }
       Object.values(audioSourcesRef.current).forEach(({ url }) => URL.revokeObjectURL(url));
     };
   }, []);
+
+  useEffect(() => {
+    if (!pendingRevokesRef.current.length) {
+      return;
+    }
+    const urls = pendingRevokesRef.current.splice(0);
+    urls.forEach((url) => {
+      if (url.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+      }
+    });
+  }, [audioSources]);
+
+  const queueForRevoke = useCallback((url: string | null | undefined) => {
+    if (url && url.startsWith("blob:")) {
+      pendingRevokesRef.current.push(url);
+    }
+  }, []);
+
+  const upsertAudioSource = useCallback(
+    (attemptId: string, nextValue: { url: string; mimeType: string | null }) => {
+      setAudioSources((prev) => {
+        const existing = prev[attemptId];
+        if (
+          existing &&
+          existing.url === nextValue.url &&
+          existing.mimeType === nextValue.mimeType
+        ) {
+          audioSourcesRef.current = prev;
+          return prev;
+        }
+
+        const next = { ...prev, [attemptId]: nextValue };
+        if (existing?.url && existing.url !== nextValue.url) {
+          queueForRevoke(existing.url);
+        }
+        audioSourcesRef.current = next;
+        return next;
+      });
+    },
+    [queueForRevoke]
+  );
+
+  const removeAudioSource = useCallback(
+    (attemptId: string) => {
+      setAudioSources((prev) => {
+        const existing = prev[attemptId];
+        if (!existing) {
+          audioSourcesRef.current = prev;
+          return prev;
+        }
+
+        const next = { ...prev };
+        delete next[attemptId];
+        queueForRevoke(existing.url);
+        audioSourcesRef.current = next;
+        return next;
+      });
+    },
+    [queueForRevoke]
+  );
 
   useEffect(() => {
     setCurrentPage((prev) => {
@@ -141,15 +207,7 @@ export default function AccentDashboardPage() {
         );
 
         const objectUrl = URL.createObjectURL(blob);
-        setAudioSources((prev) => {
-          const next = { ...prev };
-          if (next[attemptId]) {
-            URL.revokeObjectURL(next[attemptId].url);
-          }
-          next[attemptId] = { url: objectUrl, mimeType };
-          return next;
-        });
-        audioSourcesRef.current[attemptId] = { url: objectUrl, mimeType };
+        upsertAudioSource(attemptId, { url: objectUrl, mimeType });
       } catch (err) {
         if (err instanceof AuthExpiredError) {
           handleSessionExpired();
@@ -163,7 +221,7 @@ export default function AccentDashboardPage() {
         setLoadingAudioId(null);
       }
     },
-    [handleSessionExpired]
+    [handleSessionExpired, upsertAudioSource]
   );
 
   const handleDeleteAttempt = useCallback(
@@ -198,15 +256,7 @@ export default function AccentDashboardPage() {
         }
 
         setAccentHistory((prev) => prev.filter((attempt) => attempt.attempt_id !== attemptId));
-        setAudioSources((prev) => {
-          const next = { ...prev };
-          if (next[attemptId]) {
-            URL.revokeObjectURL(next[attemptId].url);
-            delete next[attemptId];
-          }
-          audioSourcesRef.current = next;
-          return next;
-        });
+        removeAudioSource(attemptId);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unable to delete accent attempt.";
         setDeleteError(message);
@@ -214,7 +264,7 @@ export default function AccentDashboardPage() {
         setDeletingId(null);
       }
     },
-    [handleSessionExpired]
+    [handleSessionExpired, removeAudioSource]
   );
 
   return (
@@ -271,57 +321,60 @@ export default function AccentDashboardPage() {
                   const audioEntry = audioSources[attempt.attempt_id];
                   const audioUrl = audioEntry?.url;
                   const audioType = audioEntry?.mimeType || "audio/webm";
+
                   return (
-                    <tr key={attempt.attempt_id} className="hover:bg-red-50/60 dark:hover:bg-gray-800/60 transition">
-                      <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-200">
-                        {new Date(attempt.created_at).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
-                        {formatAccentLabel(attempt.accent_target)}
-                      </td>
-                      <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-300">
-                        {typeof attempt.score === "number" ? `${Math.round(attempt.score)} / 100` : "—"}
-                      </td>
-                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
-                        <span className="block max-w-sm whitespace-pre-line">
-                          {attempt.transcript || "Transcript unavailable"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400 space-y-2">
-                        {attempt.audio_available ? (
-                          <>
-                            <button
-                              className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-60"
-                              onClick={() => handleLoadAudio(attempt.attempt_id)}
-                              disabled={loadingAudioId === attempt.attempt_id}
-                            >
-                              {loadingAudioId === attempt.attempt_id
-                                ? "Loading..."
-                                : audioUrl
-                                ? "Reload recording"
-                                : "Listen recording"}
-                            </button>
-                            {audioUrl && (
-                              <audio controls className="w-full">
-                                <source src={audioUrl} type={audioType} />
-                                Your browser does not support audio playback.
-                              </audio>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-xs text-gray-500">Audio unavailable</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
-                        <button
-                          onClick={() => handleDeleteAttempt(attempt.attempt_id)}
-                          disabled={deletingId === attempt.attempt_id}
-                          className="px-4 py-2 rounded-lg border border-red-200 text-red-600 font-medium hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          {deletingId === attempt.attempt_id ? "Removing..." : "Delete"}
-                        </button>
-                      </td>
-                    </tr>
+                    <Fragment key={attempt.attempt_id}>
+                      <tr className="hover:bg-red-50/60 dark:hover:bg-gray-800/60 transition">
+                        <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-200">
+                          {new Date(attempt.created_at).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                          {formatAccentLabel(attempt.accent_target)}
+                        </td>
+                        <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-300">
+                          {typeof attempt.score === "number" ? `${Math.round(attempt.score)} / 100` : "—"}
+                        </td>
+                        <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                          <span className="block max-w-sm whitespace-pre-line">
+                            {attempt.transcript || "Transcript unavailable"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                          {attempt.audio_available ? (
+                            <>
+                              <button
+                                className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-60"
+                                onClick={() => handleLoadAudio(attempt.attempt_id)}
+                                disabled={loadingAudioId === attempt.attempt_id}
+                              >
+                                {loadingAudioId === attempt.attempt_id
+                                  ? "Loading..."
+                                  : audioUrl
+                                  ? "Reload recording"
+                                  : "Listen recording"}
+                              </button>
+                              {audioUrl && (
+                                <audio controls className="w-full">
+                                  <source src={audioUrl} type={audioType} />
+                                  Your browser does not support audio playback.
+                                </audio>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-xs text-gray-500">Audio unavailable</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                          <button
+                            onClick={() => handleDeleteAttempt(attempt.attempt_id)}
+                            disabled={deletingId === attempt.attempt_id}
+                            className="px-4 py-2 rounded-lg border border-red-200 text-red-600 font-medium hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {deletingId === attempt.attempt_id ? "Removing..." : "Delete"}
+                          </button>
+                        </td>
+                      </tr>
+                    </Fragment>
                   );
                 })}
               </tbody>
