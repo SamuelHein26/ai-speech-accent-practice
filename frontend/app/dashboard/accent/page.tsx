@@ -341,58 +341,59 @@ export default function AccentDashboardPage() {
                   const audioType = audioEntry?.mimeType || "audio/webm";
 
                   return (
-                    <Fragment key={attempt.attempt_id}>
-                      <tr className="hover:bg-red-50/60 dark:hover:bg-gray-800/60 transition">
-                        <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-200">
-                          {new Date(attempt.created_at).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
-                          {formatAccentLabel(attempt.accent_target)}
-                        </td>
-                        <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-300">
-                          {typeof attempt.score === "number" ? `${Math.round(attempt.score)} / 100` : "—"}
-                        </td>
-                        <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
-                          <span className="block max-w-sm whitespace-pre-line">
-                            {attempt.transcript || "Transcript unavailable"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400 space-y-2">
-                          {attempt.audio_available ? (
-                            <>
-                              <button
-                                className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-60"
-                                onClick={() => handleLoadAudio(attempt.attempt_id)}
-                                disabled={loadingAudioId === attempt.attempt_id}
-                              >
-                                {loadingAudioId === attempt.attempt_id
-                                  ? "Loading..."
-                                  : audioUrl
-                                  ? "Reload recording"
-                                  : "Listen recording"}
-                              </button>
-                              {audioUrl && (
-                                <audio controls className="w-full">
-                                  <source src={audioUrl} type={audioType} />
-                                  Your browser does not support audio playback.
-                                </audio>
-                              )}
-                            </>
-                          ) : (
-                            <span className="text-xs text-gray-500">Audio unavailable</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
-                          <button
-                            onClick={() => handleDeleteAttempt(attempt.attempt_id)}
-                            disabled={deletingId === attempt.attempt_id}
-                            className="px-4 py-2 rounded-lg border border-red-200 text-red-600 font-medium hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
-                          >
-                            {deletingId === attempt.attempt_id ? "Removing..." : "Delete"}
-                          </button>
-                        </td>
-                      </tr>
-                    </Fragment>
+                    <tr
+                      key={attempt.attempt_id}
+                      className="hover:bg-red-50/60 dark:hover:bg-gray-800/60 transition"
+                    >
+                      <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-200">
+                        {new Date(attempt.created_at).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                        {formatAccentLabel(attempt.accent_target)}
+                      </td>
+                      <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-300">
+                        {typeof attempt.score === "number" ? `${Math.round(attempt.score)} / 100` : "—"}
+                      </td>
+                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                        <span className="block max-w-sm whitespace-pre-line">
+                          {attempt.transcript || "Transcript unavailable"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                        {attempt.audio_available ? (
+                          <>
+                            <button
+                              className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-60"
+                              onClick={() => handleLoadAudio(attempt.attempt_id)}
+                              disabled={loadingAudioId === attempt.attempt_id}
+                            >
+                              {loadingAudioId === attempt.attempt_id
+                                ? "Loading..."
+                                : audioUrl
+                                ? "Reload recording"
+                                : "Listen recording"}
+                            </button>
+                            {audioUrl && (
+                              <audio controls className="w-full">
+                                <source src={audioUrl} type={audioType} />
+                                Your browser does not support audio playback.
+                              </audio>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-xs text-gray-500">Audio unavailable</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                        <button
+                          onClick={() => handleDeleteAttempt(attempt.attempt_id)}
+                          disabled={deletingId === attempt.attempt_id}
+                          className="px-4 py-2 rounded-lg border border-red-200 text-red-600 font-medium hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {deletingId === attempt.attempt_id ? "Removing..." : "Delete"}
+                        </button>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
