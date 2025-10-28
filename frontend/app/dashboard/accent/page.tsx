@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { API_BASE as ENV_API_BASE } from "../../lib/api";
 import { AuthExpiredError, fetchAccentRecording } from "../listenRecording";
@@ -20,6 +20,19 @@ type AccentAttemptSummary = {
 
 const formatAccentLabel = (value: string) =>
   value.charAt(0).toUpperCase() + value.slice(1);
+
+type AudioLogEntry = {
+  id: string;
+  timestamp: string;
+  message: string;
+  tone: "info" | "success" | "error";
+};
+
+const AUDIO_TONE_CLASSES: Record<AudioLogEntry["tone"], string> = {
+  info: "text-gray-600 dark:text-gray-300",
+  success: "text-green-600 dark:text-green-400",
+  error: "text-red-600 dark:text-red-400",
+};
 
 export default function AccentDashboardPage() {
   const [accentHistory, setAccentHistory] = useState<AccentAttemptSummary[]>([]);
@@ -183,11 +196,13 @@ export default function AccentDashboardPage() {
 
       if (audioSourcesRef.current[attemptId]) {
         setAudioError(null);
+        logAudioEvent(attemptId, "Audio already loaded. Reusing cached clip.");
         return;
       }
 
       setLoadingAudioId(attemptId);
       setAudioError(null);
+      logAudioEvent(attemptId, "Requested audio stream.");
 
       try {
         const { summary, blob, mimeType } = await fetchAccentRecording(attemptId, token);
@@ -212,10 +227,12 @@ export default function AccentDashboardPage() {
         if (err instanceof AuthExpiredError) {
           handleSessionExpired();
           setAudioError(err.message);
+          logAudioEvent(attemptId, err.message, "error");
         } else {
           const message =
             err instanceof Error ? err.message : "Unable to fetch accent practice audio.";
           setAudioError(message);
+          logAudioEvent(attemptId, message, "error");
         }
       } finally {
         setLoadingAudioId(null);
@@ -260,6 +277,7 @@ export default function AccentDashboardPage() {
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unable to delete accent attempt.";
         setDeleteError(message);
+        logAudioEvent(attemptId, message, "error");
       } finally {
         setDeletingId(null);
       }
