@@ -48,6 +48,23 @@ export default function AccentDashboardPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [audioLogEntries, setAudioLogEntries] = useState<AudioLogEntry[]>([]);
+  const logCounterRef = useRef(0);
+
+  const logAudioEvent = useCallback(
+    (attemptId: string, message: string, tone: AudioLogEntry["tone"] = "info") => {
+      logCounterRef.current += 1;
+      const timestamp = new Date().toLocaleTimeString();
+      const entry: AudioLogEntry = {
+        id: `${attemptId}-${logCounterRef.current}`,
+        timestamp,
+        message: `Attempt ${attemptId}: ${message}`,
+        tone,
+      };
+      setAudioLogEntries((prev) => [entry, ...prev].slice(0, 50));
+    },
+    []
+  );
 
   const handleSessionExpired = useCallback(() => {
     localStorage.removeItem("token");
@@ -238,7 +255,7 @@ export default function AccentDashboardPage() {
         setLoadingAudioId(null);
       }
     },
-    [handleSessionExpired, upsertAudioSource]
+    [handleSessionExpired, logAudioEvent, upsertAudioSource]
   );
 
   const handleDeleteAttempt = useCallback(
@@ -282,7 +299,7 @@ export default function AccentDashboardPage() {
         setDeletingId(null);
       }
     },
-    [handleSessionExpired, removeAudioSource]
+    [handleSessionExpired, logAudioEvent, removeAudioSource]
   );
 
   return (
@@ -426,6 +443,23 @@ export default function AccentDashboardPage() {
           <p className="mt-2 text-center text-sm text-red-500" role="alert">
             {deleteError}
           </p>
+        )}
+        {audioLogEntries.length > 0 && (
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+              Audio activity log
+            </h3>
+            <ul className="space-y-2 text-sm">
+              {audioLogEntries.map((entry) => (
+                <li key={entry.id} className="flex items-start gap-2">
+                  <span className="text-xs text-gray-400 mt-0.5 whitespace-nowrap">
+                    {entry.timestamp}
+                  </span>
+                  <span className={`flex-1 ${AUDIO_TONE_CLASSES[entry.tone]}`}>{entry.message}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </section>
     </div>
