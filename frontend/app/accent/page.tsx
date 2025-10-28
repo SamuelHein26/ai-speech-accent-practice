@@ -42,6 +42,8 @@ type AccentWordFeedback = {
   text: string;
   status: "ok" | "bad" | "accent_mismatch";
   note?: string;
+  spoken?: string | null;
+  confidence?: number | null;
 };
 
 type AccentTrainingResponse = {
@@ -52,12 +54,14 @@ type AccentTrainingResponse = {
   transcript: string;
 };
 
+type AccentTrainingUiResult = AccentTrainingResponse & { accent: AccentOption };
+
 export default function AccentPage() {
   const [selectedAccent, setSelectedAccent] = useState<AccentOption>("american");
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<AccentTrainingResponse | null>(null);
+  const [result, setResult] = useState<AccentTrainingUiResult | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [currentPhrase, setCurrentPhrase] = useState("");
   const [isMounted, setIsMounted] = useState(false);
@@ -124,7 +128,7 @@ export default function AccentPage() {
         }
 
         const data = (await response.json()) as AccentTrainingResponse;
-        setResult(data);
+        setResult({ ...data, accent: selectedAccent });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unable to analyse recording.";
         setError(message);
@@ -305,10 +309,12 @@ export default function AccentPage() {
                   <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
                     Coach&apos;s tip
                   </p>
-                <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{result.tips}</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{result.tips}</p>
+                </div>
+
+                <WordFeedbackDetails accent={result.accent} words={result.words} />
               </div>
-            </div>
-          )}
+            )}
 
           {playbackUrl && (
             <div className="space-y-3 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800/70 p-6">
@@ -346,6 +352,86 @@ function PulseIndicator() {
   );
 }
 
+function WordFeedbackDetails({
+  accent,
+  words,
+}: {
+  accent: AccentOption;
+  words: AccentWordFeedback[];
+}) {
+  const accentLabel = accent === "american" ? "American" : "British";
+  const issues = words.filter((word) => word.status !== "ok");
+
+  if (issues.length === 0) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white/80 p-4 text-sm text-gray-600 shadow-sm dark:border-gray-800 dark:bg-gray-900/40 dark:text-gray-300">
+        Every word matched the {accentLabel} target. Nicely done!
+      </div>
+    );
+  }
+
+  const formatStatus = (status: AccentWordFeedback["status"]) => {
+    switch (status) {
+      case "accent_mismatch":
+        return "Accent adjustment";
+      case "bad":
+        return "Needs clarity";
+      default:
+        return "On target";
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
+        Detailed {accentLabel} feedback
+      </p>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+          <thead className="bg-gray-100 dark:bg-gray-800/70">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                Target word
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                What we heard
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                Confidence
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                Status
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                Coach note
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+            {issues.map((word, index) => (
+              <tr key={`${word.text}-${index}`} className="bg-white dark:bg-gray-900/40">
+                <td className="px-3 py-2 font-medium text-gray-800 dark:text-gray-100">{word.text}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-200">
+                  {word.spoken ?? <span className="italic text-gray-400">—</span>}
+                </td>
+                <td className="px-3 py-2 text-gray-600 dark:text-gray-300">
+                  {typeof word.confidence === "number"
+                    ? `${Math.round(word.confidence * 100)}%`
+                    : "—"}
+                </td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatStatus(word.status)}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-200">
+                  {word.note || "Keep practising this word."}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function ParagraphFeedback({
   feedback,
   fallbackText,
@@ -372,7 +458,13 @@ function ParagraphFeedback({
 
         return (
           <span key={`${word.text}-${index}`} className="inline-flex items-center">
-            <span className={classes} title={word.note}>{word.text}</span>
+            <span
+              className={classes}
+              title={word.note}
+              aria-label={word.note ? `${word.text}: ${word.note}` : undefined}
+            >
+              {word.text}
+            </span>
             {index < feedback.length - 1 && <span>&nbsp;</span>}
           </span>
         );
