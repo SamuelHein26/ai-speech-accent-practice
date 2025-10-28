@@ -7,6 +7,10 @@ venv/
 *.sqlite3
 db.sqlite3
 
+# Frontend
+node_modules/
+.next/
+
 # Logs
 *.log
 *.pid
