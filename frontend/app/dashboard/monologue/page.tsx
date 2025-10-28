@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_BASE_URL) ||
-  "http://127.0.0.1:8000";
+import { API_BASE as ENV_API_BASE } from "../../lib/api";
+import { AuthExpiredError, fetchMonologueRecording } from "../listenRecording";
 
+const API_BASE = ENV_API_BASE || "http://127.0.0.1:8000";
 const PAGE_SIZE = 5;
 
 type SessionSummary = {
@@ -24,11 +24,18 @@ export default function MonologueDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
-  const [audioSources, setAudioSources] = useState<Record<string, string>>({});
-  const audioSourcesRef = useRef<Record<string, string>>({});
+  const [audioSources, setAudioSources] = useState<
+    Record<string, { url: string; mimeType: string | null }>
+  >({});
+  const audioSourcesRef = useRef<Record<string, { url: string; mimeType: string | null }>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+
+  const handleSessionExpired = useCallback(() => {
+    localStorage.removeItem("token");
+    window.dispatchEvent(new Event("authChange"));
+  }, []);
 
   useEffect(() => {
     audioSourcesRef.current = audioSources;
@@ -36,7 +43,7 @@ export default function MonologueDashboardPage() {
 
   useEffect(() => {
     return () => {
-      Object.values(audioSourcesRef.current).forEach((url) => URL.revokeObjectURL(url));
+      Object.values(audioSourcesRef.current).forEach(({ url }) => URL.revokeObjectURL(url));
     };
   }, []);
 
@@ -62,6 +69,7 @@ export default function MonologueDashboardPage() {
         });
 
         if (response.status === 401) {
+          handleSessionExpired();
           throw new Error("Session expired. Please log in again.");
         }
 
@@ -82,7 +90,7 @@ export default function MonologueDashboardPage() {
     };
 
     fetchHistory();
-  }, []);
+  }, [handleSessionExpired]);
 
   const hasRecordings = history.length > 0;
   const totalPages = Math.max(1, Math.ceil(history.length / PAGE_SIZE));
@@ -113,34 +121,45 @@ export default function MonologueDashboardPage() {
       setAudioError(null);
 
       try {
-        const response = await fetch(`${API_BASE}/session/${sessionId}/audio`, {
-          headers: { Authorization: "Bearer " + token },
-        });
+        const { summary, blob, mimeType } = await fetchMonologueRecording(sessionId, token);
 
-        if (!response.ok) {
-          const detail = (await response.json().catch(() => ({}))) as { detail?: string };
-          throw new Error(detail.detail || "Unable to load audio.");
-        }
+        setHistory((prev) =>
+          prev.map((session) =>
+            session.session_id === sessionId
+              ? {
+                  ...session,
+                  duration_seconds: summary.duration_seconds,
+                  final_transcript: summary.final_transcript,
+                  filler_word_count: summary.filler_word_count,
+                  audio_available: summary.audio_available,
+                }
+              : session
+          )
+        );
 
-        const blob = await response.blob();
         const objectUrl = URL.createObjectURL(blob);
         setAudioSources((prev) => {
           const next = { ...prev };
           if (next[sessionId]) {
-            URL.revokeObjectURL(next[sessionId]);
+            URL.revokeObjectURL(next[sessionId].url);
           }
-          next[sessionId] = objectUrl;
+          next[sessionId] = { url: objectUrl, mimeType };
           return next;
         });
-        audioSourcesRef.current[sessionId] = objectUrl;
+        audioSourcesRef.current[sessionId] = { url: objectUrl, mimeType };
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Unable to fetch audio.";
-        setAudioError(message);
+        if (err instanceof AuthExpiredError) {
+          handleSessionExpired();
+          setAudioError(err.message);
+        } else {
+          const message = err instanceof Error ? err.message : "Unable to fetch audio.";
+          setAudioError(message);
+        }
       } finally {
         setLoadingAudioId(null);
       }
     },
-    []
+    [handleSessionExpired]
   );
 
   const handleDeleteRecording = useCallback(
@@ -164,6 +183,11 @@ export default function MonologueDashboardPage() {
           headers: { Authorization: "Bearer " + token },
         });
 
+        if (response.status === 401) {
+          handleSessionExpired();
+          throw new Error("Session expired. Please log in again.");
+        }
+
         if (!response.ok) {
           const detail = (await response.json().catch(() => ({}))) as { detail?: string };
           throw new Error(detail.detail || "Failed to delete recording.");
@@ -173,7 +197,7 @@ export default function MonologueDashboardPage() {
         setAudioSources((prev) => {
           const next = { ...prev };
           if (next[sessionId]) {
-            URL.revokeObjectURL(next[sessionId]);
+            URL.revokeObjectURL(next[sessionId].url);
             delete next[sessionId];
           }
           audioSourcesRef.current = next;
@@ -186,7 +210,7 @@ export default function MonologueDashboardPage() {
         setDeletingId(null);
       }
     },
-    []
+    [handleSessionExpired]
   );
 
   return (
@@ -240,7 +264,9 @@ export default function MonologueDashboardPage() {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                 {paginatedHistory.map((session) => {
-                  const audioUrl = audioSources[session.session_id];
+                  const audioEntry = audioSources[session.session_id];
+                  const audioUrl = audioEntry?.url;
+                  const audioType = audioEntry?.mimeType || "audio/wav";
                   return (
                     <tr key={session.session_id} className="hover:bg-red-50/60 dark:hover:bg-gray-800/60 transition">
                       <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-200">
@@ -268,12 +294,12 @@ export default function MonologueDashboardPage() {
                               {loadingAudioId === session.session_id
                                 ? "Loading..."
                                 : audioUrl
-                                ? "Reload"
-                                : "Load audio"}
+                                ? "Reload recording"
+                                : "Listen recording"}
                             </button>
                             {audioUrl && (
                               <audio controls className="w-full">
-                                <source src={audioUrl} type="audio/wav" />
+                                <source src={audioUrl} type={audioType} />
                                 Your browser does not support audio playback.
                               </audio>
                             )}
