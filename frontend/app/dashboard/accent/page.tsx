@@ -45,7 +45,6 @@ export default function AccentDashboardPage() {
   >({});
   const audioSourcesRef = useRef<Record<string, { url: string; mimeType: string | null }>>({});
   const pendingRevokesRef = useRef<string[]>([]);
-  const [audioLogs, setAudioLogs] = useState<Record<string, AudioLogEntry[]>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -85,36 +84,6 @@ export default function AccentDashboardPage() {
     if (url && url.startsWith("blob:")) {
       pendingRevokesRef.current.push(url);
     }
-  }, []);
-
-  const logAudioEvent = useCallback(
-    (attemptId: string, message: string, tone: AudioLogEntry["tone"] = "info") => {
-      const entry: AudioLogEntry = {
-        id: `${attemptId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        timestamp: new Date().toLocaleString(),
-        message,
-        tone,
-      };
-
-      setAudioLogs((prev) => {
-        const nextEntries = [...(prev[attemptId] ?? []), entry];
-        // Keep the most recent 8 entries to avoid unbounded growth.
-        const trimmed = nextEntries.slice(-8);
-        return { ...prev, [attemptId]: trimmed };
-      });
-    },
-    []
-  );
-
-  const clearAudioLogs = useCallback((attemptId: string) => {
-    setAudioLogs((prev) => {
-      if (!(attemptId in prev)) {
-        return prev;
-      }
-      const next = { ...prev };
-      delete next[attemptId];
-      return next;
-    });
   }, []);
 
   const upsertAudioSource = useCallback(
@@ -254,11 +223,6 @@ export default function AccentDashboardPage() {
 
         const objectUrl = URL.createObjectURL(blob);
         upsertAudioSource(attemptId, { url: objectUrl, mimeType });
-        logAudioEvent(
-          attemptId,
-          `Audio ready${mimeType ? ` (${mimeType})` : ""}.`,
-          "success"
-        );
       } catch (err) {
         if (err instanceof AuthExpiredError) {
           handleSessionExpired();
@@ -274,7 +238,7 @@ export default function AccentDashboardPage() {
         setLoadingAudioId(null);
       }
     },
-    [handleSessionExpired, logAudioEvent, upsertAudioSource]
+    [handleSessionExpired, upsertAudioSource]
   );
 
   const handleDeleteAttempt = useCallback(
@@ -310,7 +274,6 @@ export default function AccentDashboardPage() {
 
         setAccentHistory((prev) => prev.filter((attempt) => attempt.attempt_id !== attemptId));
         removeAudioSource(attemptId);
-        clearAudioLogs(attemptId);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unable to delete accent attempt.";
         setDeleteError(message);
@@ -319,7 +282,7 @@ export default function AccentDashboardPage() {
         setDeletingId(null);
       }
     },
-    [clearAudioLogs, handleSessionExpired, logAudioEvent, removeAudioSource]
+    [handleSessionExpired, removeAudioSource]
   );
 
   return (
@@ -376,8 +339,6 @@ export default function AccentDashboardPage() {
                   const audioEntry = audioSources[attempt.attempt_id];
                   const audioUrl = audioEntry?.url;
                   const audioType = audioEntry?.mimeType || "audio/webm";
-                  const logs = audioLogs[attempt.attempt_id] ?? [];
-                  const logLabel = `Audio log for attempt ${attempt.attempt_id}`;
 
                   return (
                     <Fragment key={attempt.attempt_id}>
@@ -431,41 +392,6 @@ export default function AccentDashboardPage() {
                           </button>
                         </td>
                       </tr>
-                      {logs.length > 0 && (
-                        <tr className="bg-red-50/50 dark:bg-gray-900/40">
-                          <td colSpan={6} className="px-4 pb-4 pt-2">
-                            <div
-                              role="table"
-                              aria-label={logLabel}
-                              className="w-full rounded-2xl border border-red-100 bg-white/80 p-3 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900/60"
-                            >
-                              <div role="rowgroup">
-                                <div
-                                  role="row"
-                                  className="grid grid-cols-[minmax(140px,180px)_1fr] gap-3 border-b border-red-100 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:border-gray-700 dark:text-gray-300"
-                                >
-                                  <div role="columnheader">Timestamp</div>
-                                  <div role="columnheader">Event</div>
-                                </div>
-                                {logs.map((entry) => (
-                                  <div
-                                    role="row"
-                                    key={entry.id}
-                                    className="grid grid-cols-[minmax(140px,180px)_1fr] gap-3 py-1.5"
-                                  >
-                                    <div role="cell" className="text-gray-600 dark:text-gray-400">
-                                      {entry.timestamp}
-                                    </div>
-                                    <div role="cell" className={AUDIO_TONE_CLASSES[entry.tone]}>
-                                      {entry.message}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
                     </Fragment>
                   );
                 })}
