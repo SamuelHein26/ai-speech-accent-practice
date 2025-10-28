@@ -5,12 +5,10 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from io import BytesIO
 from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
-from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -304,14 +302,13 @@ async def accent_audio(
     suffix = Path(attempt.audio_path).suffix or ".webm"
     filename = f"{attempt.attempt_id}{suffix}"
 
-    return StreamingResponse(
-        BytesIO(audio_bytes),
-        media_type=media_type,
-        headers={
-            "Cache-Control": "no-store",
-            "Content-Disposition": f"inline; filename={filename}",
-        },
-    )
+    headers = {
+        "Cache-Control": "no-store",
+        "Content-Disposition": f"inline; filename={filename}",
+        "Content-Length": str(len(audio_bytes)),
+    }
+
+    return Response(content=audio_bytes, media_type=media_type, headers=headers)
 
 
 @router.delete("/{attempt_id}", status_code=204)
