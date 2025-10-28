@@ -32,6 +32,11 @@ export default function AccentDashboardPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const handleSessionExpired = () => {
+    localStorage.removeItem("token");
+    window.dispatchEvent(new Event("authChange"));
+  };
+
   useEffect(() => {
     audioSourcesRef.current = audioSources;
   }, [audioSources]);
@@ -62,6 +67,11 @@ export default function AccentDashboardPage() {
         const response = await fetch(`${API_BASE}/accent/history`, {
           headers: { Authorization: "Bearer " + token },
         });
+
+        if (response.status === 401) {
+          handleSessionExpired();
+          throw new Error("Session expired. Please log in again.");
+        }
 
         if (!response.ok) {
           const detail = (await response.json().catch(() => ({}))) as { detail?: string };
@@ -115,6 +125,11 @@ export default function AccentDashboardPage() {
           headers: { Authorization: "Bearer " + token },
         });
 
+        if (response.status === 401) {
+          handleSessionExpired();
+          throw new Error("Session expired. Please log in again.");
+        }
+
         if (!response.ok) {
           const detail = (await response.json().catch(() => ({}))) as { detail?: string };
           throw new Error(detail.detail || "Unable to load accent practice audio.");
@@ -161,6 +176,11 @@ export default function AccentDashboardPage() {
           method: "DELETE",
           headers: { Authorization: "Bearer " + token },
         });
+
+        if (response.status === 401) {
+          handleSessionExpired();
+          throw new Error("Session expired. Please log in again.");
+        }
 
         if (!response.ok) {
           const detail = (await response.json().catch(() => ({}))) as { detail?: string };

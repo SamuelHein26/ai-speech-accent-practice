@@ -30,6 +30,11 @@ export default function MonologueDashboardPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const handleSessionExpired = () => {
+    localStorage.removeItem("token");
+    window.dispatchEvent(new Event("authChange"));
+  };
+
   useEffect(() => {
     audioSourcesRef.current = audioSources;
   }, [audioSources]);
@@ -62,6 +67,7 @@ export default function MonologueDashboardPage() {
         });
 
         if (response.status === 401) {
+          handleSessionExpired();
           throw new Error("Session expired. Please log in again.");
         }
 
@@ -117,6 +123,11 @@ export default function MonologueDashboardPage() {
           headers: { Authorization: "Bearer " + token },
         });
 
+        if (response.status === 401) {
+          handleSessionExpired();
+          throw new Error("Session expired. Please log in again.");
+        }
+
         if (!response.ok) {
           const detail = (await response.json().catch(() => ({}))) as { detail?: string };
           throw new Error(detail.detail || "Unable to load audio.");
@@ -163,6 +174,11 @@ export default function MonologueDashboardPage() {
           method: "DELETE",
           headers: { Authorization: "Bearer " + token },
         });
+
+        if (response.status === 401) {
+          handleSessionExpired();
+          throw new Error("Session expired. Please log in again.");
+        }
 
         if (!response.ok) {
           const detail = (await response.json().catch(() => ({}))) as { detail?: string };

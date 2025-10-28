@@ -40,6 +40,11 @@ export default function ProfilePage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const handleSessionExpired = () => {
+    localStorage.removeItem("token");
+    window.dispatchEvent(new Event("authChange"));
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -60,6 +65,7 @@ export default function ProfilePage() {
         ]);
 
         if (profileRes.status === 401 || historyRes.status === 401) {
+          handleSessionExpired();
           throw new Error("Session expired. Please log in again.");
         }
 
@@ -115,6 +121,11 @@ export default function ProfilePage() {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
+
+      if (response.status === 401) {
+        handleSessionExpired();
+        throw new Error("Session expired. Please log in again.");
+      }
 
       if (!response.ok) {
         const detail = (await response.json().catch(() => ({}))) as { detail?: string };
@@ -173,6 +184,11 @@ export default function ProfilePage() {
         },
         body: JSON.stringify(payload),
       });
+
+      if (response.status === 401) {
+        handleSessionExpired();
+        throw new Error("Session expired. Please log in again.");
+      }
 
       if (!response.ok) {
         const detail = (await response.json().catch(() => ({}))) as { detail?: string };
