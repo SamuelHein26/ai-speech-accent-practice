@@ -192,6 +192,47 @@ async def train_accent(
     )
 
 
+@router.get("/{attempt_id}", response_model=AccentAttemptSummary)
+async def accent_detail(
+    attempt_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    stmt = (
+        select(
+            PracticeAttempt.attempt_id,
+            PracticeAttempt.created_at,
+            PracticeAttempt.accent_target,
+            PracticeAttempt.overall_score,
+            PracticeAttempt.transcript_raw,
+            PracticeAttempt.audio_path,
+        )
+        .where(PracticeAttempt.attempt_id == attempt_id)
+        .where(PracticeAttempt.user_id == current_user.id)
+    )
+    result = await db.execute(stmt)
+    row = result.one_or_none()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    score_value = None
+    if row.overall_score is not None:
+        score_value = float(row.overall_score)
+
+    return AccentAttemptSummary(
+        attempt_id=str(row.attempt_id),
+        created_at=row.created_at,
+        accent_target=row.accent_target,
+        score=score_value,
+        transcript=row.transcript_raw,
+        audio_available=bool(row.audio_path),
+    )
+
+
 @router.get("/history", response_model=list[AccentAttemptSummary])
 async def accent_history(
     db: AsyncSession = Depends(get_db),

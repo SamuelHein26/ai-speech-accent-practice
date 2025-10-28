@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_BASE_URL) ||
-  "http://127.0.0.1:8000";
+import { API_BASE as ENV_API_BASE } from "../../lib/api";
+import { AuthExpiredError, fetchAccentRecording } from "../listenRecording";
+
+const API_BASE = ENV_API_BASE || "http://127.0.0.1:8000";
 
 const PAGE_SIZE = 5;
 
@@ -26,16 +27,18 @@ export default function AccentDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
-  const [audioSources, setAudioSources] = useState<Record<string, string>>({});
-  const audioSourcesRef = useRef<Record<string, string>>({});
+  const [audioSources, setAudioSources] = useState<
+    Record<string, { url: string; mimeType: string | null }>
+  >({});
+  const audioSourcesRef = useRef<Record<string, { url: string; mimeType: string | null }>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const handleSessionExpired = () => {
+  const handleSessionExpired = useCallback(() => {
     localStorage.removeItem("token");
     window.dispatchEvent(new Event("authChange"));
-  };
+  }, []);
 
   useEffect(() => {
     audioSourcesRef.current = audioSources;
@@ -43,7 +46,7 @@ export default function AccentDashboardPage() {
 
   useEffect(() => {
     return () => {
-      Object.values(audioSourcesRef.current).forEach((url) => URL.revokeObjectURL(url));
+      Object.values(audioSourcesRef.current).forEach(({ url }) => URL.revokeObjectURL(url));
     };
   }, []);
 
@@ -90,7 +93,7 @@ export default function AccentDashboardPage() {
     };
 
     fetchAccent();
-  }, []);
+  }, [handleSessionExpired]);
 
   const hasRecordings = accentHistory.length > 0;
   const totalPages = Math.max(1, Math.ceil(accentHistory.length / PAGE_SIZE));
@@ -121,39 +124,46 @@ export default function AccentDashboardPage() {
       setAudioError(null);
 
       try {
-        const response = await fetch(`${API_BASE}/accent/${attemptId}/audio`, {
-          headers: { Authorization: "Bearer " + token },
-        });
+        const { summary, blob, mimeType } = await fetchAccentRecording(attemptId, token);
 
-        if (response.status === 401) {
-          handleSessionExpired();
-          throw new Error("Session expired. Please log in again.");
-        }
+        setAccentHistory((prev) =>
+          prev.map((attempt) =>
+            attempt.attempt_id === attemptId
+              ? {
+                  ...attempt,
+                  accent_target: summary.accent_target,
+                  score: summary.score,
+                  transcript: summary.transcript,
+                  audio_available: summary.audio_available,
+                }
+              : attempt
+          )
+        );
 
-        if (!response.ok) {
-          const detail = (await response.json().catch(() => ({}))) as { detail?: string };
-          throw new Error(detail.detail || "Unable to load accent practice audio.");
-        }
-
-        const blob = await response.blob();
         const objectUrl = URL.createObjectURL(blob);
         setAudioSources((prev) => {
           const next = { ...prev };
           if (next[attemptId]) {
-            URL.revokeObjectURL(next[attemptId]);
+            URL.revokeObjectURL(next[attemptId].url);
           }
-          next[attemptId] = objectUrl;
+          next[attemptId] = { url: objectUrl, mimeType };
           return next;
         });
-        audioSourcesRef.current[attemptId] = objectUrl;
+        audioSourcesRef.current[attemptId] = { url: objectUrl, mimeType };
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Unable to fetch accent practice audio.";
-        setAudioError(message);
+        if (err instanceof AuthExpiredError) {
+          handleSessionExpired();
+          setAudioError(err.message);
+        } else {
+          const message =
+            err instanceof Error ? err.message : "Unable to fetch accent practice audio.";
+          setAudioError(message);
+        }
       } finally {
         setLoadingAudioId(null);
       }
     },
-    []
+    [handleSessionExpired]
   );
 
   const handleDeleteAttempt = useCallback(
@@ -191,7 +201,7 @@ export default function AccentDashboardPage() {
         setAudioSources((prev) => {
           const next = { ...prev };
           if (next[attemptId]) {
-            URL.revokeObjectURL(next[attemptId]);
+            URL.revokeObjectURL(next[attemptId].url);
             delete next[attemptId];
           }
           audioSourcesRef.current = next;
@@ -204,7 +214,7 @@ export default function AccentDashboardPage() {
         setDeletingId(null);
       }
     },
-    []
+    [handleSessionExpired]
   );
 
   return (
@@ -258,7 +268,9 @@ export default function AccentDashboardPage() {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                 {paginatedAttempts.map((attempt) => {
-                  const audioUrl = audioSources[attempt.attempt_id];
+                  const audioEntry = audioSources[attempt.attempt_id];
+                  const audioUrl = audioEntry?.url;
+                  const audioType = audioEntry?.mimeType || "audio/webm";
                   return (
                     <tr key={attempt.attempt_id} className="hover:bg-red-50/60 dark:hover:bg-gray-800/60 transition">
                       <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-200">
@@ -286,12 +298,12 @@ export default function AccentDashboardPage() {
                               {loadingAudioId === attempt.attempt_id
                                 ? "Loading..."
                                 : audioUrl
-                                ? "Reload"
-                                : "Load audio"}
+                                ? "Reload recording"
+                                : "Listen recording"}
                             </button>
                             {audioUrl && (
                               <audio controls className="w-full">
-                                <source src={audioUrl} type="audio/webm" />
+                                <source src={audioUrl} type={audioType} />
                                 Your browser does not support audio playback.
                               </audio>
                             )}
