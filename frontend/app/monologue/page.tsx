@@ -15,6 +15,7 @@ import LiveWaveform from "../components/LiveWaveform";
 type StartSessionResponse = { session_id: string; is_guest: boolean };
 type FinalizeResponse = { final: string; filler_word_count: number; audio_url?: string };
 type TopicResponse = { topics: string[] };
+type FeedbackResponse = { feedback: string };
 
 /** ---- AudioContext factory (WebAudio init w/ SR cfg) ---- */
 function createAudioContext(desiredSampleRate = 48000): AudioContext {
@@ -173,6 +174,9 @@ export default function MonologuePage() {
   const [lastSuggestionSource, setLastSuggestionSource] = useState<
     "auto" | "manual" | null
   >(null); // UX copy state (auto-surface vs manual refresh CTA)
+  const [feedback, setFeedback] = useState<string | null>(null); // AI feedback post-session
+  const [isFetchingFeedback, setIsFetchingFeedback] = useState(false); // feedback fetch in-flight
+  const [feedbackError, setFeedbackError] = useState<string | null>(null); // feedback error state
   const [elapsedSeconds, setElapsedSeconds] = useState(0); // live recording duration
   const [timeLimitReached, setTimeLimitReached] = useState(false); // flag when 3-minute cap hit
 
@@ -394,6 +398,60 @@ export default function MonologuePage() {
     [liveCommitted, livePartial]
   );
 
+  /** === Feedback generation via OpenAI backend bridge === */
+  const requestFeedback = useCallback(async (transcript: string) => {
+    const payload = transcript.trim();
+    if (!payload) {
+      setFeedback(null);
+      setFeedbackError(null);
+      return;
+    }
+
+    setIsFetchingFeedback(true);
+    setFeedback(null);
+    setFeedbackError(null);
+
+    try {
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+      const response = await fetch(`${API_BASE}/feedback/analyze`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ transcript: payload }),
+      });
+
+      if (!response.ok) {
+        let detail: string | undefined;
+        try {
+          const err = (await response.json()) as { detail?: string };
+          detail = err.detail;
+        } catch {
+          detail = undefined;
+        }
+        throw new Error(detail || "Failed to generate AI feedback");
+      }
+
+      const data: FeedbackResponse = await response.json();
+      const message = data.feedback?.trim();
+      if (!message) {
+        throw new Error("Feedback generation returned an empty response");
+      }
+      setFeedback(message);
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error
+          ? e.message
+          : "Unable to generate AI feedback right now.";
+      setFeedbackError(message);
+    } finally {
+      setIsFetchingFeedback(false);
+    }
+  }, []);
+
   /** === Auto-surface suggestions after silence (SIL threshold FSM) === */
   useEffect(() => {
     if (!isRecording) return;
@@ -476,6 +534,9 @@ export default function MonologuePage() {
     setError(null);
     setFinalTranscript("");
     setFillerWordCount(null);
+    setFeedback(null);
+    setFeedbackError(null);
+    setIsFetchingFeedback(false);
     setLiveCommitted("");
     setLivePartial("");
     lastFinalRef.current = "";
@@ -784,15 +845,16 @@ export default function MonologuePage() {
 
         const data: FinalizeResponse =
           await finalizeRes.json();
-        setFinalTranscript(
-          data.final ||
-            "Transcription incomplete."
-        );
+        const finalText =
+          data.final?.trim() ||
+          "Transcription incomplete.";
+        setFinalTranscript(finalText);
         setFillerWordCount(data.filler_word_count ?? null);
         const playbackUrl = data.audio_url
           ? resolveApiUrl(data.audio_url)
           : URL.createObjectURL(blob);
         applyAudioUrl(playbackUrl, { revokePrevious: true });
+        void requestFeedback(data.final ?? "");
         audioChunks.current = [];
       }
     } catch (e: unknown) {
@@ -810,7 +872,7 @@ export default function MonologuePage() {
       }
       timeLimitTriggeredRef.current = false;
     }
-  }, [applyAudioUrl, clearRecordingTimer]);
+  }, [applyAudioUrl, clearRecordingTimer, requestFeedback]);
 
   /** === JSX === */
   return (
@@ -1070,6 +1132,37 @@ export default function MonologuePage() {
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">
                 {highlightFillerWords(finalTranscript)}
               </p>
+            </section>
+          )}
+
+          {(isFetchingFeedback || feedback || feedbackError) && (
+            <section className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700 mb-8">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <h3 className="text-lg font-semibold">AI Feedback</h3>
+                {isFetchingFeedback && (
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    Generating...
+                  </span>
+                )}
+              </div>
+
+              {feedbackError && (
+                <p className="text-sm text-red-600 dark:text-red-400 mb-3">
+                  {feedbackError}
+                </p>
+              )}
+
+              {feedback && (
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+                  {feedback}
+                </p>
+              )}
+
+              {!feedback && !feedbackError && (
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Gathering personalized insights from your session...
+                </p>
+              )}
             </section>
           )}
 
