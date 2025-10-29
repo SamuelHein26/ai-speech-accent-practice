@@ -34,11 +34,7 @@ class StreamingTranscriptionService:
             raise ValueError("Missing ASSEMBLYAI_API_KEY for streaming")
 
     async def proxy(self, client_ws: WebSocket) -> None:
-        """
-        Bridge traffic:
-          - client_ws.receive() -> send_bytes/send_str -> AAI ws
-          - AAI ws frames       -> client_ws.send_text(JSON)
-        """
+
         # Build headers for AAI WS handshake (per official sample)
         headers = {"Authorization": self.api_key}
 
@@ -83,12 +79,7 @@ class StreamingTranscriptionService:
 
                 # --- Task: Client -> AAI ---
                 async def client_to_aai() -> None:
-                    """
-                    Forward frames from browser to AAI.
-                    Browser sends:
-                      - audio as binary PCM16 frames (ArrayBuffer)
-                      - optional control as JSON text, e.g., {"type":"Terminate"}
-                    """
+
                     try:
                         while True:
                             pkt = await client_ws.receive()

@@ -144,7 +144,6 @@ class SessionManager:
             await db.commit()
             print(f"Cleaned up {len(expired_sessions)} expired guest sessions")
 
-    # Internal helpers -------------------------------------------------------------
     def _build_storage_key(self, user_id: int | None, session_id: str) -> str:
         """Deterministically derive the storage key for a finalized session."""
 

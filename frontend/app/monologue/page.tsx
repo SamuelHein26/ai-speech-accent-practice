@@ -26,8 +26,6 @@ function createAudioContext(desiredSampleRate = 48000): AudioContext {
 
   const Ctor = w.AudioContext ?? w.webkitAudioContext;
   if (!Ctor) throw new Error("Web Audio API not supported");
-
-  // Try parameterized ctor first (some UA accept sampleRate opt)
   try {
     return new Ctor({ sampleRate: desiredSampleRate } as AudioContextOptions);
   } catch {
@@ -162,7 +160,6 @@ const wsURL = (): string => {
 };
 
 export default function MonologuePage() {
-  /** === UI/UX state === */
   const [mounted, setMounted] = useState(false); // CSR guard for hydration mismatch (SSR vs client)
   const [isRecording, setIsRecording] = useState(false); // mic capture active flag
   const [isProcessing, setIsProcessing] = useState(false); // post-stop finalize in-flight
