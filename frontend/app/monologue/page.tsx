@@ -154,30 +154,28 @@ const wsURL = (): string => {
 };
 
 export default function MonologuePage() {
-  const [mounted, setMounted] = useState(false); // CSR guard for hydration mismatch (SSR vs client)
-  const [isRecording, setIsRecording] = useState(false); // mic capture active flag
-  const [isProcessing, setIsProcessing] = useState(false); // post-stop finalize in-flight
-  const [finalTranscript, setFinalTranscript] = useState(""); // final ASR text
-  const [fillerWordCount, setFillerWordCount] = useState<number | null>(null); // filler words detected
-  const [audioUrl, setAudioUrl] = useState<string | null>(null); // blob playback URL
-  const [error, setError] = useState<string | null>(null); // fatal UX err surfacing
-  const [suggestions, setSuggestions] = useState<string[]>([]); // topic prompt list
-  const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false); // suggestions fetch in-flight
-  const [suggestionError, setSuggestionError] = useState<string | null>(null); // suggestions subsystem err
+  const [mounted, setMounted] = useState(false);
+  const [isRecording, setIsRecording] = useState(false); 
+  const [isProcessing, setIsProcessing] = useState(false); 
+  const [finalTranscript, setFinalTranscript] = useState(""); 
+  const [fillerWordCount, setFillerWordCount] = useState<number | null>(null); 
+  const [audioUrl, setAudioUrl] = useState<string | null>(null); 
+  const [error, setError] = useState<string | null>(null); 
+  const [suggestions, setSuggestions] = useState<string[]>([]); 
+  const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null); 
   const [lastSuggestionSource, setLastSuggestionSource] = useState<
     "auto" | "manual" | null
-  >(null); // UX copy state (auto-surface vs manual refresh CTA)
-  const [feedback, setFeedback] = useState<string | null>(null); // AI feedback post-session
-  const [isFetchingFeedback, setIsFetchingFeedback] = useState(false); // feedback fetch in-flight
-  const [feedbackError, setFeedbackError] = useState<string | null>(null); // feedback error state
-  const [elapsedSeconds, setElapsedSeconds] = useState(0); // live recording duration
-  const [timeLimitReached, setTimeLimitReached] = useState(false); // flag when 3-minute cap hit
+  >(null); 
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [isFetchingFeedback, setIsFetchingFeedback] = useState(false); 
+  const [feedbackError, setFeedbackError] = useState<string | null>(null); 
+  const [elapsedSeconds, setElapsedSeconds] = useState(0); 
+  const [timeLimitReached, setTimeLimitReached] = useState(false); 
 
-  /** ---- Streaming transcript state (LLM/ASR incremental buffer mgmt) ---- */
-  const [liveCommitted, setLiveCommitted] = useState(""); // committed finalized turns
-  const [livePartial, setLivePartial] = useState(""); // current interim/partial hypothesis
+  const [liveCommitted, setLiveCommitted] = useState(""); 
+  const [livePartial, setLivePartial] = useState(""); 
 
-  /** ---- Derived display string for live transcript panel ---- */
   const displayText = [liveCommitted, livePartial]
     .filter(Boolean)
     .join(" ");
@@ -191,14 +189,13 @@ export default function MonologuePage() {
   const isNearLimit = remainingSeconds <= 10 && isRecording;
   const showInteractivePanels = isRecording || isProcessing;
 
-  /** === Session / Media refs (mutable, not reactive) === */
-  const sessionRef = useRef<string | null>(null); // backend sess ID (guest/user)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null); // browser MediaRecorder handle
-  const audioChunks = useRef<Blob[]>([]); // captured audio chunks for upload/finalize
-  const audioUrlRef = useRef<string | null>(null); // track latest blob URL for cleanup
-  const timerIdRef = useRef<number | null>(null); // interval id for UI timer
-  const timerStartRef = useRef<number | null>(null); // epoch ms when recording started
-  const timeLimitTriggeredRef = useRef(false); // tracks whether auto-stop fired
+  const sessionRef = useRef<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null); 
+  const audioChunks = useRef<Blob[]>([]); 
+  const audioUrlRef = useRef<string | null>(null);
+  const timerIdRef = useRef<number | null>(null); 
+  const timerStartRef = useRef<number | null>(null); 
+  const timeLimitTriggeredRef = useRef(false); 
 
   const clearRecordingTimer = useCallback(() => {
     if (timerIdRef.current !== null) {
@@ -207,27 +204,22 @@ export default function MonologuePage() {
     }
   }, []);
 
-  /** === Live stream refs (WebSocket + WebAudio graph) === */
-  const wsRef = useRef<WebSocket | null>(null); // WS handle -> FastAPI stream proxy
-  const audioCtxRef = useRef<AudioContext | null>(null); // AudioContext handle
-  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null); // mic source node
-  const processorRef = useRef<ScriptProcessorNode | null>(null); // ScriptProcessorNode for PCM pull
-  const lastSpeechAtRef = useRef<number>(Date.now()); // epoch ms of last user speech activity
-  const suggestionCooldownRef = useRef(false); // cooldown mutex to avoid spam suggestion req
+  const wsRef = useRef<WebSocket | null>(null); 
+  const audioCtxRef = useRef<AudioContext | null>(null); 
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null); 
+  const lastSpeechAtRef = useRef<number>(Date.now()); 
+  const suggestionCooldownRef = useRef(false); 
 
-  /** === Dedup guards for transcript reconciliation === */
-  const lastFinalRef = useRef<string>(""); // last final segment pushed
-  const lastPartialRef = useRef<string>(""); // last partial segment pushed
+  const lastFinalRef = useRef<string>(""); 
+  const lastPartialRef = useRef<string>(""); 
 
-  /** === Mount bootstrap / teardown (lifecycle hook) === */
   useEffect(() => {
     setMounted(true);
 
-    // restore guest session from sessionStorage (sticky anon session)
     const existing = sessionStorage.getItem("guest_session_id");
     if (existing) sessionRef.current = existing;
 
-    // graceful teardown (WS, WebAudio graph, MediaRecorder) on unmount
     return () => {
       try {
         if (
@@ -240,7 +232,6 @@ export default function MonologuePage() {
           wsRef.current.close();
         }
       } catch {
-        /* no-op */
       }
 
       if (processorRef.current) {
