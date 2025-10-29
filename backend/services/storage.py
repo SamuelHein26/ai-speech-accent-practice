@@ -11,6 +11,8 @@ from botocore.exceptions import ClientError, BotoCoreError
 
 
 class StorageError(RuntimeError):
+    """Exception raised for storage-related errors."""
+    pass
 
 @dataclass
 class S3StorageConfig:

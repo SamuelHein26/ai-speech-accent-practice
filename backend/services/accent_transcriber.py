@@ -10,6 +10,8 @@ import requests
 
 
 class AccentTranscriptionError(RuntimeError):
+    """Exception raised for accent-transcription-related errors."""
+    pass
 
 class AccentTranscriber:
     UPLOAD_URL = "https://api.assemblyai.com/v2/upload"
