@@ -204,12 +204,14 @@ export default function MonologuePage() {
     }
   }, []);
 
-  const wsRef = useRef<WebSocket | null>(null); 
-  const audioCtxRef = useRef<AudioContext | null>(null); 
+  const wsRef = useRef<WebSocket | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null); 
-  const lastSpeechAtRef = useRef<number>(Date.now()); 
-  const suggestionCooldownRef = useRef(false); 
+  const processorRef = useRef<
+    AudioWorkletNode | ScriptProcessorNode | null
+  >(null);
+  const lastSpeechAtRef = useRef<number>(Date.now());
+  const suggestionCooldownRef = useRef(false);
 
   const lastFinalRef = useRef<string>(""); 
   const lastPartialRef = useRef<string>(""); 
@@ -235,8 +237,15 @@ export default function MonologuePage() {
       }
 
       if (processorRef.current) {
-        processorRef.current.disconnect();
-        processorRef.current.onaudioprocess = null;
+        const processor = processorRef.current;
+        processor.disconnect();
+        if ("port" in processor) {
+          processor.port.onmessage = null;
+        }
+        if ("onaudioprocess" in processor) {
+          processor.onaudioprocess = null;
+        }
+        processorRef.current = null;
       }
       if (sourceRef.current) {
         sourceRef.current.disconnect();
@@ -598,38 +607,80 @@ export default function MonologuePage() {
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
-      ws.onopen = () => {
-        const audioCtx = createAudioContext(48000);
-        audioCtxRef.current = audioCtx;
+      ws.onopen = async () => {
+        try {
+          const audioCtx = createAudioContext(48000);
+          audioCtxRef.current = audioCtx;
 
-        const source =
-          audioCtx.createMediaStreamSource(stream);
-        sourceRef.current = source;
+          const source =
+            audioCtx.createMediaStreamSource(stream);
+          sourceRef.current = source;
 
-        const processor =
-          audioCtx.createScriptProcessor(4096, 1, 1);
-        processorRef.current = processor;
+          const silentGain = audioCtx.createGain();
+          silentGain.gain.value = 0;
 
-        const silentGain = audioCtx.createGain();
-        silentGain.gain.value = 0;
+          const handleChunk = (input: Float32Array) => {
+            const int16 = downsampleTo16k(
+              input,
+              audioCtx.sampleRate
+            );
+            if (
+              ws.readyState === WebSocket.OPEN
+            ) {
+              ws.send(int16.buffer);
+            }
+          };
 
-        processor.onaudioprocess = (e) => {
-          const input =
-            e.inputBuffer.getChannelData(0);
-          const int16 = downsampleTo16k(
-            input,
-            audioCtx.sampleRate
-          );
           if (
-            ws.readyState === WebSocket.OPEN
+            audioCtx.audioWorklet &&
+            typeof audioCtx.audioWorklet.addModule ===
+              "function"
           ) {
-            ws.send(int16.buffer);
+            await audioCtx.audioWorklet.addModule(
+              "/audio-worklet-processor.js"
+            );
+            const worklet = new AudioWorkletNode(
+              audioCtx,
+              "pcm-processor",
+              {
+                numberOfInputs: 1,
+                numberOfOutputs: 1,
+                channelCount: 1,
+              }
+            );
+            processorRef.current = worklet;
+            worklet.port.onmessage = (
+              event: MessageEvent<ArrayBuffer>
+            ) => {
+              const { data } = event;
+              if (data instanceof ArrayBuffer) {
+                handleChunk(new Float32Array(data));
+              }
+            };
+            source.connect(worklet);
+            worklet.connect(silentGain);
+          } else {
+            const processor =
+              audioCtx.createScriptProcessor(4096, 1, 1);
+            processorRef.current = processor;
+            processor.onaudioprocess = (e) => {
+              handleChunk(
+                e.inputBuffer.getChannelData(0)
+              );
+            };
+            source.connect(processor);
+            processor.connect(silentGain);
           }
-        };
 
-        source.connect(processor);
-        processor.connect(silentGain);
-        silentGain.connect(audioCtx.destination);
+          silentGain.connect(audioCtx.destination);
+        } catch (err) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Failed to initialize audio processing"
+          );
+          ws.close();
+        }
       };
       ws.onmessage = (
         event: MessageEvent<
@@ -720,8 +771,15 @@ export default function MonologuePage() {
       }
 
       if (processorRef.current) {
-        processorRef.current.disconnect();
-        processorRef.current.onaudioprocess = null;
+        const processor = processorRef.current;
+        processor.disconnect();
+        if ("port" in processor) {
+          processor.port.onmessage = null;
+        }
+        if ("onaudioprocess" in processor) {
+          processor.onaudioprocess = null;
+        }
+        processorRef.current = null;
       }
       if (sourceRef.current) {
         sourceRef.current.disconnect();
