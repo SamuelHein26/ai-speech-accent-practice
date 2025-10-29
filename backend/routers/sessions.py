@@ -64,7 +64,7 @@ def count_filler_words(transcript: str | None) -> int:
 async def start_session(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
-):"
+):
     user_id = None
     is_guest = True
     if current_user:
