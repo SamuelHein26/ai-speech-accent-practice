@@ -7,7 +7,12 @@ from dotenv import load_dotenv
 from services.streaming_transcription_service import StreamingTranscriptionService
 from services.openai_service import OpenAIService
 from routers import users, sessions, auth_router, streaming, accent
-from schemas import TopicRequest, TopicResponse
+from schemas import (
+    FeedbackRequest,
+    FeedbackResponse,
+    TopicRequest,
+    TopicResponse,
+)
 
 # Load environment variables
 load_dotenv()
@@ -76,11 +81,16 @@ async def generate_topics(payload: TopicRequest):
 
 
 # === Feedback Analysis ===
-@app.post("/feedback/analyze")
-async def analyze_feedback(transcript: str):
+@app.post("/feedback/analyze", response_model=FeedbackResponse)
+async def analyze_feedback(payload: FeedbackRequest):
     """Analyze speech feedback."""
+
+    transcript = payload.transcript.strip()
+    if not transcript:
+        raise HTTPException(status_code=400, detail="Transcript is empty")
+
     try:
         feedback = await asyncio.to_thread(openai_service.analyze_speech, transcript)
-        return {"feedback": feedback}
+        return FeedbackResponse(feedback=feedback)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Feedback generation failed: {e}")

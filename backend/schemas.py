@@ -46,6 +46,14 @@ class TopicResponse(BaseModel):
     topics: List[str]
 
 
+class FeedbackRequest(BaseModel):
+    transcript: str
+
+
+class FeedbackResponse(BaseModel):
+    feedback: str
+
+
 class SessionSummary(BaseModel):
     id: int
     session_id: str
