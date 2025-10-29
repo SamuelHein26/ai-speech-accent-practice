@@ -60,7 +60,6 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-transparent bg-opacity-40 backdrop-blur-sm z-50 animate-fadeIn">
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 w-[95%] max-w-md transition-all transform hover:scale-[1.01]">
-        {/* Title */}
         <h2 className="text-3xl font-bold text-center text-red-600 dark:text-red-500 mb-6">
           Welcome Back
         </h2>
@@ -68,9 +67,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
           Sign in to continue your AI Accent Training journey
         </p>
 
-        {/* Form */}
         <form onSubmit={handleLogin} className="flex flex-col gap-5">
-          {/* Email */}
           <div>
             <label className="block text-gray-700 dark:text-gray-300 mb-2 text-sm font-medium">
               Email
@@ -85,7 +82,6 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
             />
           </div>
 
-          {/* Password */}
           <div>
             <label className="block text-gray-700 dark:text-gray-300 mb-2 text-sm font-medium">
               Password
@@ -122,7 +118,6 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
           </button>
         </form>
 
-        {/* Footer Actions */}
         <div className="mt-6 flex justify-between items-center text-sm">
           <button
             onClick={onClose}

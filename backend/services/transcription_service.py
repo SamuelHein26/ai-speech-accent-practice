@@ -1,4 +1,3 @@
-# services/transcription_service.py
 import requests
 import time
 import os
@@ -13,12 +12,9 @@ class TranscriptionService:
         self.headers = {"authorization": self.api_key, "content-type": "application/json"}
 
     def transcribe_audio(self, file_path: str) -> str:
-        """
-        Uploads the file to AssemblyAI and polls until transcription completes.
-        """
+
         print(f"Uploading {file_path} to AssemblyAI...")
 
-        # Step 1 — Upload
         with open(file_path, "rb") as f:
             upload_res = requests.post(
                 "https://api.assemblyai.com/v2/upload",
@@ -31,7 +27,6 @@ class TranscriptionService:
         upload_url = upload_res.json().get("upload_url")
         print(f"Uploaded → {upload_url}")
 
-        # Step 2 — Create transcription job
         transcript_req = {"audio_url": upload_url}
         trans_res = requests.post(
             "https://api.assemblyai.com/v2/transcript",
@@ -44,7 +39,6 @@ class TranscriptionService:
         transcript_id = trans_res.json()["id"]
         print(f"Transcription job created: {transcript_id}")
 
-        # Step 3 — Poll for completion
         status_url = f"https://api.assemblyai.com/v2/transcript/{transcript_id}"
         while True:
             poll = requests.get(status_url, headers=self.headers)

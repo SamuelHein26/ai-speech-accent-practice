@@ -14,13 +14,11 @@ export default function Header() {
   const pathname = usePathname();
   const profileRef = useRef<HTMLDivElement | null>(null);
 
-  // --- Check for token on mount
   useEffect(() => {
     const token = localStorage.getItem("token");
     setIsLoggedIn(!!token);
   }, []);
 
-  // --- Click outside closes profile dropdown
   useEffect(() => {
     const checkToken = () => setIsLoggedIn(!!localStorage.getItem("token"));
     checkToken();
@@ -43,14 +41,11 @@ export default function Header() {
 
   return (
     <header className="w-full flex justify-between items-center px-8 py-4 shadow bg-white dark:bg-gray-900 transition-colors relative">
-      {/* Branding */}
       <h1 className="font-bold text-xl text-red-600 dark:text-red-500">
         <Link href="/">ComfTalk</Link>
       </h1>
 
-      {/* Center Nav */}
       <nav className="hidden md:flex items-center space-x-6">
-        {/* Monologue */}
         <button
           onClick={() => router.push("/monologue")}
           className={`p-2 rounded-full hover:bg-red-50 dark:hover:bg-gray-800 transition cursor-pointer ${
@@ -78,7 +73,6 @@ export default function Header() {
           </svg>
         </button>
 
-        {/* Accent */}
         <button
           onClick={() => router.push("/accent")}
           className={`p-2 rounded-full hover:bg-red-50 dark:hover:bg-gray-800 transition cursor-pointer ${
@@ -105,19 +99,16 @@ export default function Header() {
           </svg>
         </button>
 
-        {/* About & Help */}
         <Link href="/about" className={`${getActiveClass("/about")} font-medium transition pb-1`}>
           About
         </Link>
       </nav>
 
-      {/* Right Section */}
       <div className="flex items-center space-x-4 relative" ref={profileRef}>
         <ThemeToggle />
 
         {isLoggedIn ? (
           <div className="relative">
-            {/* Profile Button */}
             <button
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               className="focus:outline-none bg-red-600 hover:bg-red-700 text-white font-medium rounded-full px-4 py-2.5 text-sm transition cursor-pointer"
@@ -125,7 +116,6 @@ export default function Header() {
               Profile
             </button>
 
-            {/* Dropdown */}
             {isProfileOpen && (
               <div className="absolute right-0 mt-2 w-36 bg-white dark:bg-gray-800 shadow-lg rounded-lg z-50">
                 <button
@@ -158,7 +148,6 @@ export default function Header() {
           </button>
         )}
 
-        {/* Hamburger */}
         <button
           className="md:hidden p-2 rounded-lg hover:bg-red-50 dark:hover:bg-gray-800 transition"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -181,7 +170,6 @@ export default function Header() {
         </button>
       </div>
 
-      {/* Mobile Dropdown */}
       {isMenuOpen && (
         <div className="absolute top-16 left-0 w-full bg-white dark:bg-gray-900 shadow-md flex flex-col items-center space-y-4 py-6 md:hidden z-50">
           {["/monologue", "/accent", "/about"].map((path) => (
@@ -205,7 +193,6 @@ export default function Header() {
         </div>
       )}
 
-      {/* Modal */}
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
     </header>
   );

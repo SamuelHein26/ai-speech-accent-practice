@@ -23,7 +23,7 @@ export default function LiveWaveform({ isRecording }: { isRecording: boolean }) 
 
         const audioCtx = new AudioContext();
         const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256; // moderate resolution for stable visual
+        analyser.fftSize = 256; // moderate resolution 
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
 
@@ -49,37 +49,30 @@ export default function LiveWaveform({ isRecording }: { isRecording: boolean }) 
           const midY = height / 2;
           ctx.clearRect(0, 0, width, height);
 
-          // Background
           const isDark = document.documentElement.classList.contains("dark");
-          const backgroundColor = isDark ? "#f8fafc" : "#0f172a"; // slate-900 vs slate-50
+          const backgroundColor = isDark ? "#f8fafc" : "#0f172a"; 
 
-          // Fill background based on theme
           ctx.fillStyle = backgroundColor;
           ctx.fillRect(0, 0, width, height);
-          // Gradient
           const gradient = ctx.createLinearGradient(0, 0, width, 0);
           gradient.addColorStop(0, "#a855f7"); 
           gradient.addColorStop(0.5, "#ef4444");
           gradient.addColorStop(1, "#a855f7"); 
           ctx.fillStyle = gradient;
 
-          // Compute bar metrics
           const barCount = 60;
           const step = Math.floor(bufferLength / barCount);
-          const barWidth = (width / 2) / barCount / 1.4; // half width spread
+          const barWidth = (width / 2) / barCount / 1.4; 
           const amplitude = height * 0.8;
 
-          // Draw left and right halves symmetrically
           for (let i = 0; i < barCount; i++) {
             const v = dataArray[i * step] / 255.0;
             const barHeight = v * amplitude * 0.5;
 
             const offset = i * (barWidth + 3);
 
-            // Left bars (mirror)
             ctx.fillRect(midX - offset - barWidth, midY - barHeight / 2, barWidth, barHeight);
 
-            // Right bars
             ctx.fillRect(midX + offset, midY - barHeight / 2, barWidth, barHeight);
           }
         };

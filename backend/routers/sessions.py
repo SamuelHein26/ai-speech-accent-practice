@@ -1,4 +1,3 @@
-# routers/sessions.py
 import asyncio
 import os
 import re
@@ -44,7 +43,6 @@ FILLER_PHRASES: tuple[tuple[str, ...], ...] = (
 
 
 def count_filler_words(transcript: str | None) -> int:
-    """Return the number of filler phrases detected in the transcript."""
 
     if not transcript:
         return 0
@@ -66,8 +64,7 @@ def count_filler_words(transcript: str | None) -> int:
 async def start_session(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
-):
-    """Create a new session (user or guest)."""
+):"
     user_id = None
     is_guest = True
     if current_user:
@@ -77,9 +74,8 @@ async def start_session(
 
 @router.post("/{session_id}/chunk")
 async def upload_chunk(session_id: str, file: UploadFile = File(...)):
-    """Append chunk to session’s audio file (WebM container)."""
     path = session_manager.get_audio_path(session_id)
-    # NOTE: MediaRecorder gives chunks; here we just append; no CPU bound work.
+
     async with asyncio.Lock():
         with open(path, "ab") as f:
             f.write(await file.read())
@@ -87,17 +83,12 @@ async def upload_chunk(session_id: str, file: UploadFile = File(...)):
 
 @router.post("/{session_id}/finalize")
 async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
-    """
-    Convert WebM → WAV, transcribe via AssemblyAI, then persist (if user) or purge (if guest).
-    Returns the final transcript in the HTTP response regardless of persistence path.
-    """
     webm_path = session_manager.get_audio_path(session_id)
     wav_path = str(webm_path).replace(".webm", ".wav")
 
     if not os.path.exists(webm_path):
         raise HTTPException(status_code=404, detail="Audio file not found.")
 
-    # 1) Transcode to mono/16k WAV (AssemblyAI-friendly + consistent archive)
     proc = await asyncio.create_subprocess_exec(
         "ffmpeg", "-y", "-loglevel", "error",
         "-i", str(webm_path),
@@ -110,7 +101,6 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
     if proc.returncode != 0:
         raise HTTPException(status_code=500, detail=f"FFmpeg error: {err.decode()}")
 
-    # 2) Probe duration (non-fatal)
     duration_seconds: int | None = None
     try:
         probe = await asyncio.create_subprocess_exec(
@@ -126,16 +116,13 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
     except Exception:
         duration_seconds = None
 
-    # 3) Transcribe synchronously (network I/O inside TranscriptionService)
     try:
         transcript = transcriber.transcribe_audio(wav_path)
     except Exception as e:
-        # Clean temp dir on failure; leave DB untouched
         raise HTTPException(status_code=500, detail=f"Transcription error: {e}")
 
     filler_word_count = count_filler_words(transcript)
 
-    # 4) Persist (users) or purge (guests)
     try:
         await session_manager.finalize_and_persist(
             db,
@@ -258,7 +245,6 @@ async def get_session_audio(
     if not session.audio_path:
         raise HTTPException(status_code=404, detail="Audio file unavailable")
 
-    # Download from S3 (or read locally) and return the raw bytes directly.
     try:
         if storage.is_configured():
             audio_bytes = await storage.download_audio(session.audio_path)

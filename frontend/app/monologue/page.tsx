@@ -11,15 +11,12 @@ import {
 } from "react";
 import LiveWaveform from "../components/LiveWaveform";
 
-/** ---- API response types (strict typing; no any) ---- */
 type StartSessionResponse = { session_id: string; is_guest: boolean };
 type FinalizeResponse = { final: string; filler_word_count: number; audio_url?: string };
 type TopicResponse = { topics: string[] };
 type FeedbackResponse = { feedback: string };
 
-/** ---- AudioContext factory (WebAudio init w/ SR cfg) ---- */
 function createAudioContext(desiredSampleRate = 48000): AudioContext {
-  // Browser vendor prefix fallback
   const w = window as unknown as {
     AudioContext?: typeof AudioContext;
     webkitAudioContext?: typeof AudioContext;
@@ -30,12 +27,10 @@ function createAudioContext(desiredSampleRate = 48000): AudioContext {
   try {
     return new Ctor({ sampleRate: desiredSampleRate } as AudioContextOptions);
   } catch {
-    // Fallback default ctor (older UA reject options)
     return new Ctor();
   }
 }
 
-/** ---- Base URL derivation (avoids trailing slash) ---- */
 const RAW_API_BASE =
   (typeof process !== "undefined" &&
     process.env.NEXT_PUBLIC_API_BASE_URL) ||
@@ -52,10 +47,8 @@ const resolveApiUrl = (path: string): string => {
   return `${API_BASE}${normalized}`;
 };
 
-/** ---- Suggestion trigger silence threshold (ms) ---- */
 const SUGGESTION_SILENCE_MS = 6_000;
 
-/** ---- Maximum live capture duration (seconds) ---- */
 const MAX_RECORDING_SECONDS = 180;
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -298,19 +291,15 @@ export default function MonologuePage() {
     []
   );
 
-  /** === Activity register: called whenever we get new speech tokens via RT-STT === */
   const registerSpeechActivity = useCallback(() => {
     lastSpeechAtRef.current = Date.now();
     suggestionCooldownRef.current = false;
-    // clear suggestion "stale" error state once user starts talking again
     setSuggestionError((prev) => (prev ? null : prev));
-    // reset "auto" source hint if last ones were auto
     setLastSuggestionSource((prev) =>
       prev === "auto" ? null : prev
     );
   }, []);
 
-  /** === Topic suggestion pipeline (manual / auto trigger) === */
   const requestSuggestions = useCallback(
     async (source: "auto" | "manual") => {
       const transcriptSnapshot = [liveCommitted, livePartial]
@@ -319,7 +308,6 @@ export default function MonologuePage() {
         .trim();
 
       if (!transcriptSnapshot) {
-        // Edge case: user spam-clicks "New ideas" before saying anything
         if (source === "manual") {
           setSuggestionError(
             "Speak for a few seconds so we can tailor fresh topics."
@@ -328,7 +316,6 @@ export default function MonologuePage() {
         return;
       }
 
-      // prevent multiple parallel req (rate-limit UX)
       suggestionCooldownRef.current = true;
       setIsFetchingSuggestions(true);
       setSuggestionError(null);
@@ -398,7 +385,6 @@ export default function MonologuePage() {
     [liveCommitted, livePartial]
   );
 
-  /** === Feedback generation via OpenAI backend bridge === */
   const requestFeedback = useCallback(async (transcript: string) => {
     const payload = transcript.trim();
     if (!payload) {
@@ -452,7 +438,6 @@ export default function MonologuePage() {
     }
   }, []);
 
-  /** === Auto-surface suggestions after silence (SIL threshold FSM) === */
   useEffect(() => {
     if (!isRecording) return;
 
@@ -481,7 +466,6 @@ export default function MonologuePage() {
     requestSuggestions,
   ]);
 
-  /** === PCM conversion utils (Float32 -> Int16LE, resample to 16kHz mono) === */
   const floatTo16BitPCM = (input: Float32Array): Int16Array => {
     const out = new Int16Array(input.length);
     for (let i = 0; i < input.length; i++) {
@@ -528,9 +512,8 @@ export default function MonologuePage() {
     return floatTo16BitPCM(down);
   };
 
-  /** === startRecording: boot session, mic capture, WS RTP-like uplink === */
   const startRecording = async (): Promise<void> => {
-    // reset UI/UX state for fresh session
+  
     setError(null);
     setFinalTranscript("");
     setFillerWordCount(null);
@@ -554,7 +537,6 @@ export default function MonologuePage() {
     timeLimitTriggeredRef.current = false;
 
     try {
-      // 1. obtain/ensure server session for DB persistence
       const token =
         typeof window !== "undefined"
           ? localStorage.getItem("token")
@@ -582,7 +564,6 @@ export default function MonologuePage() {
         startData.session_id
       );
 
-      // 2. acquire mic (MediaStream)
       const stream =
         await navigator.mediaDevices.getUserMedia({
           audio: {
@@ -592,7 +573,6 @@ export default function MonologuePage() {
           },
         });
 
-      // 3. init MediaRecorder for local final blob archival
       const mr = new MediaRecorder(stream, {
         mimeType: "audio/webm",
       });
@@ -622,14 +602,12 @@ export default function MonologuePage() {
         }
       }, 250);
 
-      // 4. WS open -> wire up ScriptProcessorNode pump
       const url = wsURL();
       const ws = new WebSocket(url);
-      ws.binaryType = "arraybuffer"; // raw PCM frames → backend
+      ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
       ws.onopen = () => {
-        // build WebAudio graph (mic -> processor -> PCM frame send)
         const audioCtx = createAudioContext(48000);
         audioCtxRef.current = audioCtx;
 
@@ -641,7 +619,6 @@ export default function MonologuePage() {
           audioCtx.createScriptProcessor(4096, 1, 1);
         processorRef.current = processor;
 
-        // silentGain sink avoids feedback loop (no monitor)
         const silentGain = audioCtx.createGain();
         silentGain.gain.value = 0;
 
@@ -663,8 +640,6 @@ export default function MonologuePage() {
         processor.connect(silentGain);
         silentGain.connect(audioCtx.destination);
       };
-
-      // 5. WS downstream messages for partial/final ASR tokens
       ws.onmessage = (
         event: MessageEvent<
           string | ArrayBufferLike | Blob
@@ -676,13 +651,9 @@ export default function MonologuePage() {
             event.data as string
           ) as Record<string, unknown>;
           const t = msg["type"];
-
-          // control frames from backend
           if (t === "Begin") {
             return;
           }
-
-          // incremental transcript frame
           if (t === "Turn") {
             const text = String(
               msg["transcript"] || ""
@@ -693,12 +664,9 @@ export default function MonologuePage() {
             );
 
             if (!text) return;
-
-            // mark activity for silence-timer logic
             registerSpeechActivity();
 
             if (isFinal) {
-              // append only if new final
               if (text !== lastFinalRef.current) {
                 setLiveCommitted((prev) =>
                   prev
@@ -707,11 +675,9 @@ export default function MonologuePage() {
                 );
                 lastFinalRef.current = text;
               }
-              // reset partial buffer
               setLivePartial("");
               lastPartialRef.current = "";
             } else {
-              // update partial only on change
               if (
                 text !== lastPartialRef.current
               ) {
@@ -721,31 +687,26 @@ export default function MonologuePage() {
             }
           }
         } catch {
-          // ignore heartbeat / malformed frames
         }
       };
 
       ws.onerror = () =>
         setError("Streaming connection error");
       ws.onclose = () => {
-        /* WS closed -> handled in stopRecording */
       };
 
       setIsRecording(true);
     } catch (e: unknown) {
-      // fatal init err path
       const msg =
         e instanceof Error
           ? e.message
           : "Failed to start streaming";
       setError(msg);
 
-      // best-effort cleanup (idempotent)
       await stopRecording();
     }
   };
 
-  /** === stopRecording: tear down WS/Audio graph, upload blob, finalize ASR === */
   const stopRecording = useCallback(async (): Promise<void> => {
     setIsRecording(false);
     setIsProcessing(true);
@@ -753,7 +714,6 @@ export default function MonologuePage() {
     timerStartRef.current = null;
 
     try {
-      // A. graceful WS shutdown
       if (
         wsRef.current &&
         wsRef.current.readyState ===
@@ -764,12 +724,10 @@ export default function MonologuePage() {
             JSON.stringify({ type: "Terminate" })
           );
         } catch {
-          /* no-op */
         }
         wsRef.current.close();
       }
 
-      // B. destroy WebAudio nodes + ctx
       if (processorRef.current) {
         processorRef.current.disconnect();
         processorRef.current.onaudioprocess = null;
@@ -780,8 +738,6 @@ export default function MonologuePage() {
       if (audioCtxRef.current) {
         await audioCtxRef.current.close();
       }
-
-      // C. stop MediaRecorder and await onstop flush
       const mr = mediaRecorderRef.current;
       if (
         mr &&
@@ -792,8 +748,6 @@ export default function MonologuePage() {
           mr.stop();
         });
       }
-
-      // D. send final blob → backend finalize pipeline
       if (!sessionRef.current)
         throw new Error(
           "Session not initialized"
@@ -874,13 +828,10 @@ export default function MonologuePage() {
     }
   }, [applyAudioUrl, clearRecordingTimer, requestFeedback]);
 
-  /** === JSX === */
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900 transition-colors">
-      {/* Global header/nav (top bar) */}
       <Header />
 
-      {/* SSR safety gate */}
       {!mounted ? (
         <div className="flex-1 flex items-center justify-center">
           <p className="text-gray-600 dark:text-gray-300">
@@ -889,7 +840,6 @@ export default function MonologuePage() {
         </div>
       ) : (
         <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col">
-          {/* Hero / Intro copy (hidden when actively recording to reduce clutter) */}
           {!isRecording && (
             <section className="text-center mb-10">
               <h2 className="text-4xl font-bold mb-4 text-gray-900 dark:text-gray-100">
@@ -908,9 +858,7 @@ export default function MonologuePage() {
             </section>
           )}
 
-          {/* Control strip (Start/Stop/Processing) + waveform */}
           <section className="flex flex-col items-center mb-8">
-            {/* CTA controls */}
             <div className="flex flex-wrap items-center justify-center gap-4 mb-6">
               {!isRecording && !isProcessing ? (
                 <button
@@ -968,7 +916,6 @@ export default function MonologuePage() {
               </div>
             )}
 
-            {/* Live waveform visualization (VU meter style) */}
             {isRecording && (
               <div className="w-full max-w-xl">
                 <LiveWaveform
@@ -978,10 +925,6 @@ export default function MonologuePage() {
             )}
           </section>
 
-          {/* === Responsive main grid: Live Transcript | Topic Suggestions ===
-               lg+: 2-col split view
-               <lg: stacked with gap
-          */}
           {showInteractivePanels && (
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full mb-10">
               {/* --- Live Transcript panel (col 1) --- */}
@@ -1003,7 +946,6 @@ export default function MonologuePage() {
                 </p>
               </div>
 
-              {/* --- Topic Suggestions panel (col 2) --- */}
               <div className="bg-slate-50 dark:bg-slate-900/60 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="text-lg font-semibold">
@@ -1106,7 +1048,6 @@ export default function MonologuePage() {
             </section>
           )}
 
-          {/* Error alert (UX fail-fast surfacing) */}
           {error && (
             <section className="bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 p-4 rounded-xl shadow mb-8 border border-red-300/60 dark:border-red-700/60">
               <p className="font-semibold">
@@ -1118,7 +1059,6 @@ export default function MonologuePage() {
             </section>
           )}
 
-          {/* Final transcript (post-session ASR result) */}
           {finalTranscript && (
             <section className="w-full bg-green-50 dark:bg-green-900/40 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 mb-8 border border-green-300/50 dark:border-green-800/50">
               <h3 className="text-lg font-semibold mb-2">
@@ -1166,7 +1106,6 @@ export default function MonologuePage() {
             </section>
           )}
 
-          {/* Playback (audio element for review QA) */}
           {audioUrl && (
             <section className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-semibold mb-2">

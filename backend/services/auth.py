@@ -1,4 +1,3 @@
-# backend/services/auth.py
 import os
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt

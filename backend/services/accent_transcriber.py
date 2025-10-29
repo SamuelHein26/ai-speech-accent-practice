@@ -10,8 +10,6 @@ import requests
 
 
 class AccentTranscriptionError(RuntimeError):
-    """Raised when transcription fails."""
-
 
 class AccentTranscriber:
     UPLOAD_URL = "https://api.assemblyai.com/v2/upload"
@@ -29,7 +27,6 @@ class AccentTranscriber:
         poll_interval: float = 2.0,
         timeout_seconds: float = 120.0,
     ) -> tuple[str, List[dict]]:
-        """Upload audio bytes and return the transcript text and words."""
 
         upload_url = self._upload_audio(audio_bytes)
         transcript_id = self._start_transcription(upload_url)

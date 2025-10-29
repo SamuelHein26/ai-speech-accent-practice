@@ -1,5 +1,3 @@
-"""Scoring and feedback utilities for accent training attempts."""
-
 from __future__ import annotations
 
 import re
@@ -66,7 +64,6 @@ def evaluate_attempt(
     *,
     accent_target: str,
 ) -> tuple[List[WordFeedback], float]:
-    """Compare recognised words against the expected transcript."""
 
     expected_tokens = _tokenise(expected_text)
     spoken_tokens = list(recognised)
@@ -79,7 +76,6 @@ def evaluate_attempt(
         stripped_expected = _strip_punct(expected)
 
         if not stripped_expected:
-            # Preserve whitespace-only or punctuation tokens as ok.
             feedback.append(WordFeedback(text=expected, status="ok"))
             continue
 

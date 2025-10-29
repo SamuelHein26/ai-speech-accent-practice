@@ -1,5 +1,3 @@
-"""Helpers for storing accent training audio in S3 or a local fallback."""
-
 from __future__ import annotations
 
 import os
@@ -10,7 +8,6 @@ from .storage import S3Storage, S3StorageConfig, StorageError
 
 
 class S3AudioStorage:
-    """Store raw audio bytes in S3 (with a local fallback for development)."""
 
     def __init__(
         self,
@@ -48,8 +45,6 @@ class S3AudioStorage:
         *,
         content_type: str = "audio/webm",
     ) -> str:
-        """Synchronously persist audio bytes and return the storage location."""
-
         if self.is_configured():
             return self._storage.put_object_bytes(
                 object_key,
@@ -66,7 +61,6 @@ class S3AudioStorage:
         *,
         content_type: str = "audio/webm",
     ) -> str:
-        """Persist audio bytes and return the object key or local path."""
 
         if self.is_configured():
             try:
@@ -82,7 +76,6 @@ class S3AudioStorage:
         return self._write_local(object_key, data)
 
     async def download_audio(self, stored_key: str) -> bytes:
-        """Retrieve raw audio bytes regardless of backing store."""
 
         if self.is_configured():
             return await self._storage.download_audio(stored_key)
@@ -97,7 +90,7 @@ class S3AudioStorage:
         return path.read_bytes()
 
     async def delete_audio(self, stored_key: str) -> None:
-        """Delete the stored audio object from S3 or the local fallback."""
+        # Delete store audio
 
         if self.is_configured():
             await self._storage.delete_audio(stored_key)

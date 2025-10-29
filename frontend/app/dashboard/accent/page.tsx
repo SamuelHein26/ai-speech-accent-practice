@@ -1,23 +1,14 @@
 "use client";
 
-/**
- * AccentDashboardPage
- * UX: shows user's accent training attempts (history table, pagination, playback, delete).
- * This version has no audio activity log UI/telemetry.
- */
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { API_BASE as ENV_API_BASE } from "../../lib/api";
 import { AuthExpiredError, fetchAccentRecording } from "../listenRecording";
 
-// Fallback base URL if ENV_API_BASE is undefined
 const API_BASE = ENV_API_BASE || "http://127.0.0.1:8000";
 
-// Page size for pagination UX
 const PAGE_SIZE = 5;
 
-// DTO returned by BE /accent/history
 type AccentAttemptSummary = {
   attempt_id: string;
   created_at: string;
@@ -27,54 +18,28 @@ type AccentAttemptSummary = {
   audio_available: boolean;
 };
 
-// Pretty-print accent labels (first letter uppercase)
 const formatAccentLabel = (value: string) =>
   value.charAt(0).toUpperCase() + value.slice(1);
 
 export default function AccentDashboardPage() {
-  /**
-   * State: server data / UX state
-   */
   const [accentHistory, setAccentHistory] = useState<AccentAttemptSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  /**
-   * State: audio fetch + playback
-   */
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
 
-  /**
-   * Local cache of fetched audio blobs for attempts
-   * audioSources[attemptId] = { url: blobUrl, mimeType }
-   */
   const [audioSources, setAudioSources] = useState<
     Record<string, { url: string; mimeType: string | null }>
   >({});
 
-  // Refs to track current audio sources and pending revokes (blob URLs)
   const audioSourcesRef = useRef<
     Record<string, { url: string; mimeType: string | null }>
   >({});
   const pendingRevokesRef = useRef<string[]>([]);
 
-  /**
-   * Deletion state (UI disable + error)
-   */
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  /**
-   * Pagination state
-   */
   const [currentPage, setCurrentPage] = useState(1);
-
-  /**
-   * Stable cb: handle session expiry / invalid token.
-   * Clears token and broadcasts authChange (so other components can react).
-   * deps: [] (pure localStorage + window event)
-   */
   const handleSessionExpired = useCallback(() => {
     localStorage.removeItem("token");
     window.dispatchEvent(new Event("authChange"));
@@ -98,10 +63,7 @@ export default function AccentDashboardPage() {
     };
   }, []);
 
-  /**
-   * Whenever audioSources changes, revoke any stale blob URLs that were
-   * scheduled for revocation via queueForRevoke.
-   */
+
   useEffect(() => {
     if (!pendingRevokesRef.current.length) {
       return;
@@ -114,21 +76,11 @@ export default function AccentDashboardPage() {
     });
   }, [audioSources]);
 
-  /**
-   * Helper: enqueue a blob URL to be revoked in a later cleanup tick.
-   */
   const queueForRevoke = useCallback((url: string | null | undefined) => {
     if (url && url.startsWith("blob:")) {
       pendingRevokesRef.current.push(url);
     }
   }, []);
-
-  /**
-   * upsertAudioSource
-   * - Adds or updates the blob URL + mimeType for the given attemptId
-   * - Schedules revocation for any replaced blob URL
-   * deps: [queueForRevoke] (stable)
-   */
   const upsertAudioSource = useCallback(
     (attemptId: string, nextValue: { url: string; mimeType: string | null }) => {
       setAudioSources((prev) => {
@@ -138,15 +90,14 @@ export default function AccentDashboardPage() {
           existing.url === nextValue.url &&
           existing.mimeType === nextValue.mimeType
         ) {
-          // No change needed
+
           audioSourcesRef.current = prev;
           return prev;
         }
 
-        // Clone prev and write new data
+
         const next = { ...prev, [attemptId]: nextValue };
 
-        // If we replaced the blob URL, schedule cleanup of the old one
         if (existing?.url && existing.url !== nextValue.url) {
           queueForRevoke(existing.url);
         }
@@ -167,11 +118,8 @@ export default function AccentDashboardPage() {
           return prev;
         }
 
-        // Remove key
         const next = { ...prev };
         delete next[attemptId];
-
-        // Revoke blob URL later
         queueForRevoke(existing.url);
 
         audioSourcesRef.current = next;
@@ -233,10 +181,6 @@ export default function AccentDashboardPage() {
 
     fetchAccent();
   }, [handleSessionExpired]);
-
-  /**
-   * Derived pagination vars
-   */
   const hasRecordings = accentHistory.length > 0;
   const totalPages = Math.max(1, Math.ceil(accentHistory.length / PAGE_SIZE));
 
@@ -258,7 +202,6 @@ export default function AccentDashboardPage() {
         return;
       }
 
-      // If already loaded, do nothing (no refetch)
       if (audioSourcesRef.current[attemptId]) {
         setAudioError(null);
         return;
@@ -273,7 +216,6 @@ export default function AccentDashboardPage() {
           token
         );
 
-        // Sync updated metadata for this attempt (e.g., transcript, score)
         setAccentHistory((prev) =>
           prev.map((attempt) =>
             attempt.attempt_id === attemptId
@@ -288,7 +230,6 @@ export default function AccentDashboardPage() {
           )
         );
 
-        // Cache blob URL for playback
         const objectUrl = URL.createObjectURL(blob);
         upsertAudioSource(attemptId, { url: objectUrl, mimeType });
       } catch (err) {

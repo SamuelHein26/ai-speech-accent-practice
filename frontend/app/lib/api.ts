@@ -11,7 +11,7 @@ export async function apiGet<T>(path: string, init?: FetchOptions): Promise<T> {
     ...init,
     method: "GET",
     headers: { "Accept": "application/json", ...(init?.headers || {}) },
-    credentials: "include", // keep if you ever switch to cookie auth; harmless now
+    credentials: "include", 
   });
   if (!res.ok) {
     const msg = await safeMsg(res);

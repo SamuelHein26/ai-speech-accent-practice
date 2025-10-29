@@ -1,5 +1,3 @@
-"""Storage service for S3-compatible storage."""
-
 from __future__ import annotations
 
 import asyncio
@@ -13,8 +11,6 @@ from botocore.exceptions import ClientError, BotoCoreError
 
 
 class StorageError(RuntimeError):
-    """Raised when storage operations fail or storage is not configured."""
-
 
 @dataclass
 class S3StorageConfig:
@@ -23,13 +19,11 @@ class S3StorageConfig:
     access_key: Optional[str]
     secret_key: Optional[str]
     prefix: str
-    # Optional: if you want to use a custom endpoint (like MinIO, DigitalOcean Spaces, etc.)
     endpoint_url: Optional[str] = None
 
     @classmethod
     def from_env(cls) -> "S3StorageConfig":
         prefix = os.getenv("S3_STORAGE_PREFIX", "recordings").strip()
-        # Normalize prefix so that downstream joins are predictable.
         if prefix.endswith("/"):
             prefix = prefix[:-1]
         
@@ -50,7 +44,6 @@ class S3StorageConfig:
 
 
 class S3Storage:
-    """Async wrapper around boto3 S3 operations."""
 
     def __init__(self, config: Optional[S3StorageConfig] = None):
         self.config = config or S3StorageConfig.from_env()
@@ -61,7 +54,6 @@ class S3Storage:
             raise StorageError("S3 storage is not configured")
 
     def _get_client(self):
-        """Lazy initialization of S3 client."""
         if self._client is None:
             if not self.is_configured():
                 raise StorageError("S3 storage is not configured")
@@ -71,7 +63,7 @@ class S3Storage:
                 aws_access_key_id=self.config.access_key,
                 aws_secret_access_key=self.config.secret_key,
                 region_name=self.config.region,
-                endpoint_url=self.config.endpoint_url,  # None for standard AWS S3
+                endpoint_url=self.config.endpoint_url, 
             )
         return self._client
 
@@ -79,8 +71,6 @@ class S3Storage:
         return self.config.is_configured()
 
     async def upload_audio(self, object_key: str, file_path: str) -> str:
-        """Upload ``file_path`` to S3 and return the stored key."""
-
         def _upload() -> str:
             self._ensure_configured()
 
@@ -110,7 +100,6 @@ class S3Storage:
         *,
         content_type: str = "audio/webm",
     ) -> str:
-        """Synchronously upload ``data`` to S3 and return the stored key."""
 
         self._ensure_configured()
 
@@ -135,7 +124,6 @@ class S3Storage:
         *,
         content_type: str = "audio/webm",
     ) -> str:
-        """Upload in-memory bytes to S3 and return the stored key."""
 
         return await asyncio.to_thread(
             self.put_object_bytes,
@@ -145,7 +133,6 @@ class S3Storage:
         )
 
     def get_object_bytes(self, stored_key: str) -> bytes:
-        """Synchronously fetch and return the raw audio bytes for ``stored_key``."""
 
         self._ensure_configured()
         client = self._get_client()
@@ -160,7 +147,6 @@ class S3Storage:
             raise StorageError(f"S3 download failed: {str(e)}")
 
     async def download_audio(self, stored_key: str) -> bytes:
-        """Fetch and return the raw audio bytes for ``stored_key``."""
 
         return await asyncio.to_thread(self.get_object_bytes, stored_key)
 
@@ -184,7 +170,6 @@ class S3Storage:
             raise StorageError(f"Failed to generate presigned URL: {str(e)}")
 
     def delete_object(self, stored_key: str) -> None:
-        """Synchronously delete the object identified by ``stored_key`` from storage."""
 
         self._ensure_configured()
         client = self._get_client()
@@ -198,12 +183,10 @@ class S3Storage:
             raise StorageError(f"Failed to delete stored audio: {str(e)}")
 
     async def delete_audio(self, stored_key: str) -> None:
-        """Delete the object identified by ``stored_key`` from storage."""
 
         await asyncio.to_thread(self.delete_object, stored_key)
 
     def _apply_prefix(self, object_key: str) -> str:
-        """Apply the configured prefix to the object key."""
         key = object_key.lstrip("/")
         if not self.config.prefix:
             return key
