@@ -75,15 +75,3 @@ npm run dev
 ```
 
 The development server runs at [http://localhost:3000](http://localhost:3000) and is already configured to communicate with the FastAPI backend on the default localhost ports.
-
-## Deployment notes
-
-- Provide a managed PostgreSQL instance and set the `DATABASE_URL` (and optionally `DATABASE_URL_SYNC`) environment variables.
-- Configure `CORS_ORIGINS`/`FRONTEND_URL` with your production domain so browsers can access the API without errors.
-- In production environments, keep `DATABASE_SSL` unset (or set to `true`) to ensure TLS is enforced by Render.
-- Rotate `SECRET_KEY` regularly and store API credentials in your secret manager of choice.
-
-## Housekeeping
-
-- The `frontend/node_modules/` directory is intentionally ignored; install dependencies locally with `npm install`.
-- Sample assets and recordings live under `backend/recordings/` and can be pruned or replaced in your deployments.
