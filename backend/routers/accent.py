@@ -1,6 +1,3 @@
-# Comment: Accent training endpoints (FastAPI APIRouter).
-#          Handles: upload clip -> transcribe -> evaluate -> persist -> respond.
-
 from __future__ import annotations
 
 import asyncio
