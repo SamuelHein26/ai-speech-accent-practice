@@ -58,27 +58,27 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-transparent bg-opacity-40 backdrop-blur-sm z-50 animate-fadeIn">
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50 animate-fadeIn">
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 w-[95%] max-w-md transition-all transform hover:scale-[1.01]">
         <h2 className="text-3xl font-bold text-center text-red-600 dark:text-red-500 mb-6">
           Welcome Back
         </h2>
         <p className="text-center text-gray-600 dark:text-gray-400 mb-8 text-sm">
-          Sign in to continue your AI Accent Training journey
+          Sign in to continue your ComfTalk practice journey
         </p>
 
         <form onSubmit={handleLogin} className="flex flex-col gap-5">
           <div>
             <label className="block text-gray-700 dark:text-gray-300 mb-2 text-sm font-medium">
-              Email
+              Email or Username
             </label>
             <input
-              type="email"
-              placeholder="you@example.com"
+              type="text"
+              placeholder="you@example.com or username"
               value={email}
               onChange={(ev) => setEmail(ev.target.value)}
               required
-              className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-gray-500 dark:text-gray-100 focus:ring-2 focus:ring-red-500 outline-none transition"
+              className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-red-500 outline-none transition"
             />
           </div>
 
@@ -93,7 +93,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 value={password}
                 onChange={(ev) => setPassword(ev.target.value)}
                 required
-                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-gray-500 dark:text-gray-100 focus:ring-2 focus:ring-red-500 outline-none transition"
+                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-red-500 outline-none transition"
               />
               <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
                 <input

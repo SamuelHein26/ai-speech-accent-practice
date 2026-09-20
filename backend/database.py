@@ -56,11 +56,8 @@ DATABASE_URL = (
     os.getenv("DATABASE_URL")
     or os.getenv("DATABASE_URL_SYNC")
     or os.getenv("RENDER_DATABASE_URL")
+    or "postgresql+asyncpg://postgres:postgres@localhost:5432/comftalk"
 )
-if not DATABASE_URL:
-    raise ValueError(
-        "None of DATABASE_URL, DATABASE_URL_SYNC, or RENDER_DATABASE_URL are set"
-    )
 
 # Resolve to IPv4 to avoid IPv6 connectivity issues with some Render instances
 DATABASE_URL = _resolve_ipv4_host(DATABASE_URL)

@@ -188,7 +188,7 @@ export default function AccentPage() {
   }, [isRecording, startRecording, stopRecording]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-red-50 via-white to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-800 transition-colors">
       <Header />
       <main className="px-4 py-12 flex justify-center">
         <div className="w-full max-w-3xl space-y-10">
@@ -202,7 +202,7 @@ export default function AccentPage() {
             </p>
           </header>
 
-          <section className="bg-white dark:bg-gray-900 border border-red-100 dark:border-gray-800 shadow-lg rounded-3xl p-8 space-y-6">
+          <section className="bg-white dark:bg-gray-900 border border-red-100 dark:border-gray-700 shadow-lg rounded-3xl p-8 space-y-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Target accent</h2>

@@ -191,6 +191,7 @@ export default function MonologuePage() {
 
   const sessionRef = useRef<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null); 
+  const streamRef = useRef<MediaStream | null>(null);
   const audioChunks = useRef<Blob[]>([]); 
   const audioUrlRef = useRef<string | null>(null);
   const timerIdRef = useRef<number | null>(null); 
@@ -232,6 +233,11 @@ export default function MonologuePage() {
           wsRef.current.close();
         }
       } catch {
+      }
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
       }
 
       if (processorRef.current) {
@@ -563,6 +569,7 @@ export default function MonologuePage() {
             echoCancellation: true,
           },
         });
+      streamRef.current = stream;
 
       const mr = new MediaRecorder(stream, {
         mimeType: "audio/webm",
@@ -623,7 +630,7 @@ export default function MonologuePage() {
           if (
             ws.readyState === WebSocket.OPEN
           ) {
-            ws.send(int16.buffer);
+            ws.send(int16);
           }
         };
 
@@ -643,6 +650,11 @@ export default function MonologuePage() {
           ) as Record<string, unknown>;
           const t = msg["type"];
           if (t === "Begin") {
+            return;
+          }
+          if (t === "Error") {
+            const reason = String(msg["reason"] || "Streaming connection error");
+            setError(reason);
             return;
           }
           if (t === "Turn") {
@@ -719,6 +731,11 @@ export default function MonologuePage() {
         wsRef.current.close();
       }
 
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
       if (processorRef.current) {
         processorRef.current.disconnect();
         processorRef.current.onaudioprocess = null;
@@ -754,52 +771,50 @@ export default function MonologuePage() {
         fd.append("file", blob, "final.webm");
 
         // upload chunk(s)
-        const uploadRes = await fetch(
-          `${API_BASE}/session/${sessionRef.current}/chunk`,
-          {
-            method: "POST",
-            body: fd,
-          }
-        );
-        if (!uploadRes.ok) {
-          const err = (await uploadRes.json()) as {
-            detail?: string;
-          };
-          throw new Error(
-            err.detail ||
-              "Failed to upload audio chunk"
+        try {
+          await fetch(
+            `${API_BASE}/session/${sessionRef.current}/chunk`,
+            {
+              method: "POST",
+              body: fd,
+            }
           );
+        } catch {
         }
 
-        // finalize
-        const finalizeRes = await fetch(
-          `${API_BASE}/session/${sessionRef.current}/finalize`,
-          {
-            method: "POST",
-          }
-        );
-        if (!finalizeRes.ok) {
-          const err = (await finalizeRes.json()) as {
-            detail?: string;
-          };
-          throw new Error(
-            err.detail ||
-              "Transcription failed"
+        let finalText = "";
+        try {
+          const finalizeRes = await fetch(
+            `${API_BASE}/session/${sessionRef.current}/finalize`,
+            {
+              method: "POST",
+            }
           );
+          if (finalizeRes.ok) {
+            const data: FinalizeResponse = await finalizeRes.json();
+            finalText = data.final?.trim() || "";
+            setFillerWordCount(data.filler_word_count ?? null);
+            const playbackUrl = data.audio_url
+              ? resolveApiUrl(data.audio_url)
+              : URL.createObjectURL(blob);
+            applyAudioUrl(playbackUrl, { revokePrevious: true });
+            if (finalText) {
+              void requestFeedback(finalText);
+            }
+          }
+        } catch {
         }
 
-        const data: FinalizeResponse =
-          await finalizeRes.json();
-        const finalText =
-          data.final?.trim() ||
-          "Transcription incomplete.";
+        if (!finalText) {
+          finalText = displayText.trim() || "Transcription incomplete.";
+          if (displayText.trim()) {
+            void requestFeedback(displayText.trim());
+          }
+          const localUrl = URL.createObjectURL(blob);
+          applyAudioUrl(localUrl, { revokePrevious: true });
+        }
+
         setFinalTranscript(finalText);
-        setFillerWordCount(data.filler_word_count ?? null);
-        const playbackUrl = data.audio_url
-          ? resolveApiUrl(data.audio_url)
-          : URL.createObjectURL(blob);
-        applyAudioUrl(playbackUrl, { revokePrevious: true });
-        void requestFeedback(data.final ?? "");
         audioChunks.current = [];
       }
     } catch (e: unknown) {
@@ -817,10 +832,10 @@ export default function MonologuePage() {
       }
       timeLimitTriggeredRef.current = false;
     }
-  }, [applyAudioUrl, clearRecordingTimer, requestFeedback]);
+  }, [applyAudioUrl, clearRecordingTimer, displayText, requestFeedback]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900 transition-colors">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-800 transition-colors">
       <Header />
 
       {!mounted ? (
@@ -854,21 +869,21 @@ export default function MonologuePage() {
               {!isRecording && !isProcessing ? (
                 <button
                   onClick={startRecording}
-                  className="px-6 py-4 bg-gray-700 text-white rounded-full shadow hover:bg-red-900 transition-colors"
+                  className="px-8 py-3.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-full shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] cursor-pointer"
                 >
                   Start Recording
                 </button>
               ) : isRecording ? (
                 <button
                   onClick={stopRecording}
-                  className="px-8 py-3 bg-red-600 text-white rounded-full shadow hover:bg-red-700"
+                  className="px-8 py-3.5 bg-red-600 text-white font-semibold rounded-full shadow-lg hover:bg-red-700 transition-all cursor-pointer"
                 >
                   Stop Recording
                 </button>
               ) : (
                 <button
                   disabled
-                  className="px-8 py-3 bg-gray-500 text-white rounded-full shadow"
+                  className="px-8 py-3.5 bg-gray-400 text-white font-semibold rounded-full shadow cursor-not-allowed"
                 >
                   Processing...
                 </button>
@@ -919,7 +934,7 @@ export default function MonologuePage() {
           {showInteractivePanels && (
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full mb-10">
               {/* --- Live Transcript panel (col 1) --- */}
-              <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700">
+              <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700">
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="text-lg font-semibold">
                     Live Transcript
@@ -1067,7 +1082,7 @@ export default function MonologuePage() {
           )}
 
           {(isFetchingFeedback || feedback || feedbackError) && (
-            <section className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700 mb-8">
+            <section className="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700 mb-8">
               <div className="flex items-center justify-between gap-3 mb-2">
                 <h3 className="text-lg font-semibold">AI Feedback</h3>
                 {isFetchingFeedback && (
@@ -1098,7 +1113,7 @@ export default function MonologuePage() {
           )}
 
           {audioUrl && (
-            <section className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700">
+            <section className="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-semibold mb-2">
                 Playback
               </h3>

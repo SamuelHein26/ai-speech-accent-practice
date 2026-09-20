@@ -319,7 +319,7 @@ export default function AccentDashboardPage() {
         </p>
       </header>
 
-      <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-red-100 dark:border-gray-800 p-8">
+      <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-red-100 dark:border-gray-700 p-8">
         <div className="flex flex-col gap-1 mb-6 text-center">
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
             Accent practice library
@@ -418,7 +418,7 @@ export default function AccentDashboardPage() {
                             </button>
 
                             {audioUrl && (
-                              <audio controls className="w-full">
+                              <audio key={audioUrl} controls className="w-full">
                                 <source
                                   src={audioUrl}
                                   type={audioType}

@@ -53,7 +53,11 @@ async def register_user(user_data: UserCreate, db: AsyncSession = Depends(get_db
 
 @router.post("/login", response_model=Token)
 async def login_user(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.username == user_data.username))
+    result = await db.execute(
+        select(User).where(
+            (User.username == user_data.username) | (User.email == user_data.username)
+        )
+    )
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(user_data.password, user.hashed_password):

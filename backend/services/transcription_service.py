@@ -11,7 +11,13 @@ class TranscriptionService:
         self.api_key = api_key
         self.headers = {"authorization": self.api_key, "content-type": "application/json"}
 
-    def transcribe_audio(self, file_path: str) -> str:
+    def transcribe_audio(
+        self,
+        file_path: str,
+        *,
+        poll_interval: float = 2.0,
+        timeout_seconds: float = 120.0,
+    ) -> str:
 
         print(f"Uploading {file_path} to AssemblyAI...")
 
@@ -40,16 +46,20 @@ class TranscriptionService:
         print(f"Transcription job created: {transcript_id}")
 
         status_url = f"https://api.assemblyai.com/v2/transcript/{transcript_id}"
-        while True:
+        deadline = time.time() + timeout_seconds
+        while time.time() < deadline:
             poll = requests.get(status_url, headers=self.headers)
             status_data = poll.json()
-            status = status_data["status"]
+            status = status_data.get("status")
 
             if status == "completed":
                 print("Transcription completed.")
-                return status_data["text"]
+                return status_data.get("text", "")
 
             if status == "error":
-                raise Exception(f"Transcription failed: {status_data['error']}")
+                raise Exception(f"Transcription failed: {status_data.get('error')}")
 
             print(f"Status: {status} (waiting...)")
+            time.sleep(poll_interval)
+
+        raise Exception("Transcription timed out")

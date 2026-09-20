@@ -9,7 +9,7 @@ export default function Home() {
 
 
   return (
-    <main className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
+    <main className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 transition-colors">
       <Header/>
       {/* Hero Section */}
       <section className="flex flex-col items-center justify-center text-center py-20 px-6">
@@ -27,7 +27,7 @@ export default function Home() {
         {/* ================= Monologue Mode Tile ================= */}
         <Link
           href="/monologue"
-          className="group flex flex-col items-center justify-center p-10 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 hover:shadow-2xl transition-all duration-300 cursor-pointer focus:outline-none focus:ring-4 focus:ring-red-300 dark:focus:ring-red-600"
+          className="group flex flex-col items-center justify-center p-10 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 hover:bg-red-50 dark:hover:bg-gray-800/80 hover:shadow-2xl transition-all duration-300 cursor-pointer focus:outline-none focus:ring-4 focus:ring-red-300 dark:focus:ring-red-600"
         >
           {/* Tile Icon */}
           <div className="mb-6 flex items-center justify-center w-20 h-20 rounded-full bg-red-100 dark:bg-red-900">
@@ -61,7 +61,7 @@ export default function Home() {
         {/* ================= Accent Training Tile ================= */}
         <Link
           href="/accent"
-          className="group flex flex-col items-center justify-center p-10 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 hover:shadow-2xl transition-all duration-300 cursor-pointer focus:outline-none focus:ring-4 focus:ring-red-300 dark:focus:ring-red-600"
+          className="group flex flex-col items-center justify-center p-10 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 hover:bg-red-50 dark:hover:bg-gray-800/80 hover:shadow-2xl transition-all duration-300 cursor-pointer focus:outline-none focus:ring-4 focus:ring-red-300 dark:focus:ring-red-600"
         >
           {/* Tile Icon */}
           <div className="mb-6 flex items-center justify-center w-20 h-20 rounded-full bg-red-100 dark:bg-red-900">

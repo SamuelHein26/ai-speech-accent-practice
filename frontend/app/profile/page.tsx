@@ -215,11 +215,11 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-red-50 via-white to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-800 transition-colors">
       <Header />
       <main className="px-4 py-12 flex justify-center">
         <div className="w-full max-w-4xl space-y-8">
-          <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-red-100 dark:border-gray-800 p-8">
+          <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-red-100 dark:border-gray-700 p-8">
             {loading ? (
               <p className="text-center text-gray-600 dark:text-gray-400">Loading profile...</p>
             ) : error ? (
@@ -298,7 +298,7 @@ export default function ProfilePage() {
             ) : null}
           </section>
 
-          <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-red-100 dark:border-gray-800 p-8">
+          <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-red-100 dark:border-gray-700 p-8">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-semibold text-red-600 dark:text-red-400">Recent recordings</h2>
               <button

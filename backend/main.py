@@ -1,10 +1,9 @@
 import os
 import asyncio
 
-from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from services.streaming_transcription_service import StreamingTranscriptionService
 from services.openai_service import OpenAIService
 from routers import users, sessions, auth_router, streaming, accent
 from schemas import (
@@ -53,17 +52,10 @@ app.include_router(accent.router)
 
 # === Dependency Setup ===
 openai_service = OpenAIService(os.getenv("OPENAI_API_KEY"))
-stream_service = StreamingTranscriptionService()
 
 @app.get("/")
 def health():
     return {"status": "ok"}
-
-        
-@app.websocket("/ws/stream")
-async def websocket_stream(ws: WebSocket):
-    await ws.accept()
-    await stream_service.proxy(ws)
 
 # === Topic Generation ===
 @app.post("/topics/generate", response_model=TopicResponse)

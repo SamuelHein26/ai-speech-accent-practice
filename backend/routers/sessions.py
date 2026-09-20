@@ -23,7 +23,17 @@ router = APIRouter(prefix="/session", tags=["Sessions"])
 
 storage = S3Storage()
 session_manager = SessionManager(Path("./live_sessions"), storage=storage)
-transcriber = TranscriptionService(os.getenv("ASSEMBLYAI_API_KEY"))
+
+_transcriber: Optional[TranscriptionService] = None
+
+def _get_transcriber() -> TranscriptionService:
+    global _transcriber
+    if _transcriber is None:
+        key = os.getenv("ASSEMBLYAI_API_KEY")
+        if not key:
+            raise HTTPException(status_code=500, detail="Missing AssemblyAI API key.")
+        _transcriber = TranscriptionService(key)
+    return _transcriber
 
 FILLER_PHRASES: tuple[tuple[str, ...], ...] = (
     ("um",),
@@ -117,7 +127,8 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
         duration_seconds = None
 
     try:
-        transcript = transcriber.transcribe_audio(wav_path)
+        transcriber = _get_transcriber()
+        transcript = await asyncio.to_thread(transcriber.transcribe_audio, wav_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Transcription error: {e}")
 

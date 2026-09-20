@@ -2,14 +2,21 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from services.streaming_transcription_service import StreamingTranscriptionService
 
 router = APIRouter(tags=["Realtime"])
-_service = StreamingTranscriptionService()
+_service = None
+
+def _get_streaming_service() -> StreamingTranscriptionService:
+    global _service
+    if _service is None:
+        _service = StreamingTranscriptionService()
+    return _service
 
 @router.websocket("/ws/stream")
 async def ws_stream(websocket: WebSocket):
     await websocket.accept()
     try:
+        service = _get_streaming_service()
         print("[WS] Client connected")
-        await _service.proxy(websocket)
+        await service.proxy(websocket)
     except WebSocketDisconnect:
         print("[WS] Client disconnected")
     except Exception as e:

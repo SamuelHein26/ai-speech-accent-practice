@@ -58,6 +58,56 @@ def _tokenise(text: str) -> List[str]:
     return [token for token in WORD_SPLIT_RE.split(text.strip()) if token]
 
 
+def _align_tokens(expected_tokens: Sequence[str], spoken_tokens: Sequence[RecognisedWord]) -> List[tuple[int | None, int | None]]:
+    n = len(expected_tokens)
+    m = len(spoken_tokens)
+
+    exp_norm = [_strip_punct(t) for t in expected_tokens]
+    spk_norm = [_strip_punct(w.word) for w in spoken_tokens]
+
+    # Needleman-Wunsch sequence alignment
+    # Match: +2, Mismatch: -1, Gap (skip expected or skip spoken): -1
+    dp = [[0] * (m + 1) for _ in range(n + 1)]
+    for i in range(n + 1):
+        dp[i][0] = -i
+    for j in range(m + 1):
+        dp[0][j] = -j
+
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            if exp_norm[i - 1] == spk_norm[j - 1] and exp_norm[i - 1]:
+                match_score = dp[i - 1][j - 1] + 2
+            else:
+                match_score = dp[i - 1][j - 1] - 1
+            dp[i][j] = max(
+                match_score,
+                dp[i - 1][j] - 1,
+                dp[i][j - 1] - 1,
+            )
+
+    # Backtrack
+    i, j = n, m
+    alignment: List[tuple[int | None, int | None]] = []
+    while i > 0 or j > 0:
+        if i > 0 and j > 0:
+            is_exact = exp_norm[i - 1] == spk_norm[j - 1] and exp_norm[i - 1]
+            diag_score = dp[i - 1][j - 1] + (2 if is_exact else -1)
+            if dp[i][j] == diag_score:
+                alignment.append((i - 1, j - 1))
+                i -= 1
+                j -= 1
+                continue
+        if i > 0 and dp[i][j] == dp[i - 1][j] - 1:
+            alignment.append((i - 1, None))
+            i -= 1
+        else:
+            alignment.append((None, j - 1))
+            j -= 1
+
+    alignment.reverse()
+    return alignment
+
+
 def evaluate_attempt(
     expected_text: str,
     recognised: Sequence[RecognisedWord],
@@ -69,17 +119,23 @@ def evaluate_attempt(
     spoken_tokens = list(recognised)
 
     feedback: List[WordFeedback] = []
-    spoken_index = 0
     accent_label = accent_target.capitalize()
 
-    for expected in expected_tokens:
+    alignment = _align_tokens(expected_tokens, spoken_tokens)
+
+    for e_idx, s_idx in alignment:
+        if e_idx is None:
+            # Extra spoken token not matching expected phrase; skip from output
+            continue
+
+        expected = expected_tokens[e_idx]
         stripped_expected = _strip_punct(expected)
 
         if not stripped_expected:
             feedback.append(WordFeedback(text=expected, status="ok"))
             continue
 
-        if spoken_index >= len(spoken_tokens):
+        if s_idx is None:
             feedback.append(
                 WordFeedback(
                     text=expected,
@@ -90,9 +146,7 @@ def evaluate_attempt(
             )
             continue
 
-        spoken = spoken_tokens[spoken_index]
-        spoken_index += 1
-
+        spoken = spoken_tokens[s_idx]
         normalised_spoken = _strip_punct(spoken.word)
 
         if normalised_spoken == stripped_expected:

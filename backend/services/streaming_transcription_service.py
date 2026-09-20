@@ -22,9 +22,13 @@ AAI_WS_ENDPOINT = (
 class StreamingTranscriptionService:
 
     def __init__(self, api_key: Optional[str] = None) -> None:
-        self.api_key = api_key or ASSEMBLYAI_API_KEY
+        self.api_key = (
+            api_key
+            or os.getenv("ASSEMBLYAI_STREAMING_API_KEY")
+            or os.getenv("ASSEMBLYAI_API_KEY")
+        )
         if not self.api_key:
-            raise ValueError("Missing ASSEMBLYAI_API_KEY for streaming")
+            raise ValueError("Missing ASSEMBLYAI_STREAMING_API_KEY or ASSEMBLYAI_API_KEY for streaming")
 
     async def proxy(self, client_ws: WebSocket) -> None:
 

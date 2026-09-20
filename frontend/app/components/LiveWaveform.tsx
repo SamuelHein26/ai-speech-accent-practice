@@ -8,9 +8,16 @@ export default function LiveWaveform({ isRecording }: { isRecording: boolean }) 
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
+  const streamRef = useRef<MediaStream | null>(null);
+
   useEffect(() => {
     if (!isRecording) {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+      sourceRef.current?.disconnect();
       audioContextRef.current?.close().catch(() => {});
       return;
     }
@@ -20,6 +27,7 @@ export default function LiveWaveform({ isRecording }: { isRecording: boolean }) 
     const initAudio = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        streamRef.current = stream;
 
         const audioCtx = new AudioContext();
         const analyser = audioCtx.createAnalyser();
@@ -50,7 +58,7 @@ export default function LiveWaveform({ isRecording }: { isRecording: boolean }) 
           ctx.clearRect(0, 0, width, height);
 
           const isDark = document.documentElement.classList.contains("dark");
-          const backgroundColor = isDark ? "#f8fafc" : "#0f172a"; 
+          const backgroundColor = isDark ? "#1f2937" : "#f8fafc";
 
           ctx.fillStyle = backgroundColor;
           ctx.fillRect(0, 0, width, height);
@@ -88,6 +96,11 @@ export default function LiveWaveform({ isRecording }: { isRecording: boolean }) 
     return () => {
       isCancelled = true;
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+      sourceRef.current?.disconnect();
       audioContextRef.current?.close().catch(() => {});
     };
   }, [isRecording]);

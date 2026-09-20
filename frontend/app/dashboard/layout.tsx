@@ -7,19 +7,19 @@ import type { ReactNode } from "react";
 
 const tabs = [
   { href: "/dashboard/monologue", label: "Monologue" },
-  { href: "/dashboard/accent", label: "Accent training" },
+  { href: "/dashboard/accent", label: "Accent Training" },
 ] as const;
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-red-50 via-white to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-800 transition-colors">
       <Header />
       <main className="px-4 py-12 flex justify-center">
         <div className="w-full max-w-5xl space-y-8">
           <nav className="flex justify-center">
-            <div className="inline-flex rounded-full bg-white/70 backdrop-blur px-1 py-1 shadow dark:bg-gray-900/70 dark:border dark:border-gray-800">
+            <div className="inline-flex rounded-full bg-white/70 backdrop-blur px-1 py-1 shadow dark:bg-gray-900/70 dark:border dark:border-gray-700">
               {tabs.map((tab) => {
                 const isActive = pathname === tab.href || pathname?.startsWith(`${tab.href}/`);
                 return (

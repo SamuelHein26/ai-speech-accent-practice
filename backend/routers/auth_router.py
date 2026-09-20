@@ -13,7 +13,7 @@ async def login(
     password: str = Form(...),
     db: AsyncSession = Depends(get_db)
 ):
-    stmt = select(User).where(User.email == username)
+    stmt = select(User).where((User.email == username) | (User.username == username))
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 

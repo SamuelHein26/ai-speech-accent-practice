@@ -47,10 +47,10 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-red-50 via-white to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-800 transition-colors">
       <Header />
       <main className="flex flex-col items-center px-4 py-16">
-        <div className="w-full max-w-md bg-white dark:bg-gray-900 shadow-xl rounded-3xl p-8 space-y-6 border border-red-100 dark:border-gray-800">
+        <div className="w-full max-w-md bg-white dark:bg-gray-900 shadow-xl rounded-3xl p-8 space-y-6 border border-red-100 dark:border-gray-700">
           <div className="space-y-2 text-center">
             <h1 className="text-3xl font-semibold text-red-600 dark:text-red-400">Create your account</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400">

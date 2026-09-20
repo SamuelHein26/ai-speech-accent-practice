@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 class UserCreate(BaseModel):
     username: str
@@ -20,8 +20,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserProfileResponse(UserResponse):
@@ -63,8 +62,7 @@ class SessionSummary(BaseModel):
     filler_word_count: Optional[int]
     audio_available: bool
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AccentWordFeedback(BaseModel):
@@ -91,5 +89,4 @@ class AccentAttemptSummary(BaseModel):
     transcript: Optional[str]
     audio_available: bool
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
