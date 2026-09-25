@@ -4,7 +4,7 @@ A full-stack practice environment that helps learners refine their speech and ac
 
 ## Features
 
-- **Guided practice sessions** with streaming AssemblyAI transcription and OpenAI-powered feedback.
+- **Guided practice sessions** with streaming Deepgram transcription and AI-powered feedback (Gemini or Ollama).
 - **Accent drills** that store individual attempts for later review.
 - **User accounts and session history** managed by a PostgreSQL database through SQLAlchemy and Alembic migrations.
 - **Modern frontend** built with Next.js 15, React 19, and Tailwind CSS.
@@ -13,6 +13,7 @@ A full-stack practice environment that helps learners refine their speech and ac
 
 ```
 .
+├── .env              # Environment variables (create this — never commit it)
 ├── backend/          # FastAPI application, routers, services, and Alembic migrations
 ├── frontend/         # Next.js frontend (App Router)
 └── README.md         # This document
@@ -23,7 +24,8 @@ A full-stack practice environment that helps learners refine their speech and ac
 - Python 3.11+
 - Node.js 20+ (recommended by Next.js 15)
 - PostgreSQL 14+ (or a compatible managed instance)
-- Access to OpenAI and AssemblyAI API keys
+- A [Deepgram](https://deepgram.com) API key (free \$200 credit on sign-up)
+- A [Gemini](https://aistudio.google.com) API key **or** [Ollama](https://ollama.com) for local dev
 
 ## Backend setup
 
@@ -37,17 +39,19 @@ pip install -r requirements.txt
 
 ### Environment variables
 
-Create a `.env` file in `backend/` with at least the following configuration:
+Create a `.env` file in the **project root** (alongside `backend/` and `frontend/`) with at least the following configuration:
 
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | SQLAlchemy-compatible PostgreSQL connection string (include `sslmode=require` for Render). |
 | `DATABASE_URL_SYNC` | Optional sync connection string used by Alembic if the async DSN is not supported. |
-| `RENDER_DATABASE_URL` | Legacy fallback for Render deployments. |
 | `DATABASE_SSL` | Set to `false` locally to disable TLS; leave unset/`true` in production. |
-| `OPENAI_API_KEY` | Required for topic suggestions and speech feedback. |
-| `ASSEMBLYAI_API_KEY` | Used for offline transcription and accent analysis. |
-| `ASSEMBLYAI_STREAMING_API_KEY` | Enables the WebSocket streaming transcription service. |
+| `DEEPGRAM_API_KEY` | Required for all transcription — batch (accent drills + monologue) and real-time streaming. |
+| `LLM_BACKEND` | Which LLM to use: `gemini` (default/production), `ollama` (local dev), or `openai` (legacy). |
+| `GEMINI_API_KEY` | Required when `LLM_BACKEND=gemini`. Uses `gemini-3.5-flash-lite`. |
+| `OLLAMA_BASE_URL` | Ollama API base URL (default: `http://localhost:11434/v1`). Used when `LLM_BACKEND=ollama`. |
+| `OLLAMA_MODEL` | Ollama model name (default: `llama3.2:3b`). Used when `LLM_BACKEND=ollama`. |
+| `OPENAI_API_KEY` | Only required when `LLM_BACKEND=openai` (legacy fallback). |
 | `SECRET_KEY` | JWT signing key for authentication. |
 | `CORS_ORIGINS` | Comma-separated list of allowed origins (overrides defaults). |
 | `FRONTEND_URL` | Additional single origin appended to the CORS list. |

@@ -1,10 +1,11 @@
 import os
 import asyncio
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from services.openai_service import OpenAIService
+from services.openai_service import _build_service as _build_llm_service
 from routers import users, sessions, auth_router, streaming, accent
 from schemas import (
     FeedbackRequest,
@@ -13,8 +14,8 @@ from schemas import (
     TopicResponse,
 )
 
-# Load environment variables
-load_dotenv()
+# Load .env from the project root (one level above backend/)
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 app = FastAPI()
 # === CORS Config ===
@@ -51,7 +52,7 @@ app.include_router(streaming.router)
 app.include_router(accent.router)
 
 # === Dependency Setup ===
-openai_service = OpenAIService(os.getenv("OPENAI_API_KEY"))
+openai_service = _build_llm_service()
 
 @app.get("/")
 def health():

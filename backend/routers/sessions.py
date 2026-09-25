@@ -17,7 +17,7 @@ from services.session_manager import SessionManager
 from services.storage import S3Storage, StorageError
 from services.transcription_service import TranscriptionService
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 router = APIRouter(prefix="/session", tags=["Sessions"])
 
@@ -29,9 +29,9 @@ _transcriber: Optional[TranscriptionService] = None
 def _get_transcriber() -> TranscriptionService:
     global _transcriber
     if _transcriber is None:
-        key = os.getenv("ASSEMBLYAI_API_KEY")
+        key = os.getenv("DEEPGRAM_API_KEY")
         if not key:
-            raise HTTPException(status_code=500, detail="Missing AssemblyAI API key.")
+            raise HTTPException(status_code=500, detail="Missing Deepgram API key.")
         _transcriber = TranscriptionService(key)
     return _transcriber
 

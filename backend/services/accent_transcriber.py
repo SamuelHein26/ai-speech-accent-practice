@@ -1,119 +1,114 @@
-"""AssemblyAI-backed transcription that returns word confidences."""
+"""Deepgram-backed transcription that returns word confidences.
+
+Replaces the former AssemblyAI-based AccentTranscriber with the same
+public interface so callers (accent.py router) require no changes.
+"""
 
 from __future__ import annotations
 
 import os
-import time
-from typing import Iterable, List
+from typing import List
 
-import requests
+import httpx
 
 
 class AccentTranscriptionError(RuntimeError):
     """Exception raised for accent-transcription-related errors."""
     pass
 
+
 class AccentTranscriber:
-    UPLOAD_URL = "https://api.assemblyai.com/v2/upload"
-    TRANSCRIPT_URL = "https://api.assemblyai.com/v2/transcript"
+    """Transcribe audio bytes via the Deepgram pre-recorded API.
+
+    Returns ``(transcript_text, word_list)`` where each word entry is::
+
+        {"word": str, "confidence": float}
+
+    This is identical to the shape the accent router expects, so no router
+    changes are required.
+    """
+
+    _LISTEN_URL = "https://api.deepgram.com/v1/listen"
 
     def __init__(self, api_key: str | None = None) -> None:
-        self.api_key = api_key or os.getenv("ASSEMBLYAI_API_KEY")
+        self.api_key = api_key or os.getenv("DEEPGRAM_API_KEY")
         if not self.api_key:
-            raise ValueError("ASSEMBLYAI_API_KEY is not configured")
+            raise ValueError("DEEPGRAM_API_KEY is not configured")
+
+    # ------------------------------------------------------------------
+    # Public API (same signature as the old AssemblyAI transcriber)
+    # ------------------------------------------------------------------
 
     def transcribe_with_words(
         self,
         audio_bytes: bytes,
         *,
-        poll_interval: float = 2.0,
-        timeout_seconds: float = 120.0,
+        timeout: float = 120.0,
     ) -> tuple[str, List[dict]]:
+        """Upload *audio_bytes* to Deepgram and return ``(text, words)``."""
+        return self._call_deepgram(audio_bytes, timeout=timeout)
 
-        upload_url = self._upload_audio(audio_bytes)
-        transcript_id = self._start_transcription(upload_url)
-        return self._poll_transcript(transcript_id, poll_interval, timeout_seconds)
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
-    def _upload_audio(self, audio_bytes: bytes) -> str:
-        headers = {"authorization": self.api_key, "content-type": "application/octet-stream"}
-
-        def _chunked() -> Iterable[bytes]:
-            chunk_size = 5 * 1024 * 1024
-            for index in range(0, len(audio_bytes), chunk_size):
-                yield audio_bytes[index : index + chunk_size]
-
-        response = requests.post(self.UPLOAD_URL, headers=headers, data=_chunked())
-        if response.status_code != 200:
-            raise AccentTranscriptionError(
-                f"Failed to upload audio: {response.status_code} {response.text}"
-            )
-
-        data = response.json()
-        upload_url = data.get("upload_url")
-        if not upload_url:
-            raise AccentTranscriptionError("AssemblyAI upload did not return a URL")
-        return upload_url
-
-    def _start_transcription(self, upload_url: str) -> str:
-        payload = {
-            "audio_url": upload_url,
-            "punctuate": True,
-            "format_text": True,
-            "word_boost": [],
-            "speaker_labels": False,
-        }
-        headers = {
-            "authorization": self.api_key,
-            "content-type": "application/json",
-        }
-
-        response = requests.post(self.TRANSCRIPT_URL, json=payload, headers=headers)
-        if response.status_code != 200:
-            raise AccentTranscriptionError(
-                f"Failed to create transcript: {response.status_code} {response.text}"
-            )
-
-        data = response.json()
-        transcript_id = data.get("id")
-        if not transcript_id:
-            raise AccentTranscriptionError("AssemblyAI transcription did not return an ID")
-        return transcript_id
-
-    def _poll_transcript(
+    def _call_deepgram(
         self,
-        transcript_id: str,
-        poll_interval: float,
-        timeout_seconds: float,
+        audio_bytes: bytes,
+        *,
+        timeout: float,
     ) -> tuple[str, List[dict]]:
-        headers = {"authorization": self.api_key}
-        status_url = f"{self.TRANSCRIPT_URL}/{transcript_id}"
+        headers = {
+            "Authorization": f"Token {self.api_key}",
+            "Content-Type": "audio/webm",
+        }
+        params = {
+            "model": "nova-2",
+            "punctuate": "true",
+            "words": "true",          # include per-word confidence
+            "smart_format": "true",
+        }
 
-        deadline = time.time() + timeout_seconds
-        while time.time() < deadline:
-            response = requests.get(status_url, headers=headers)
-            if response.status_code != 200:
-                raise AccentTranscriptionError(
-                    f"Polling failed: {response.status_code} {response.text}"
-                )
+        try:
+            response = httpx.post(
+                self._LISTEN_URL,
+                headers=headers,
+                params=params,
+                content=audio_bytes,
+                timeout=timeout,
+            )
+        except httpx.TimeoutException as exc:
+            raise AccentTranscriptionError("Deepgram request timed out") from exc
+        except httpx.RequestError as exc:
+            raise AccentTranscriptionError(f"Network error calling Deepgram: {exc}") from exc
 
-            body = response.json()
-            status = body.get("status")
+        if response.status_code != 200:
+            raise AccentTranscriptionError(
+                f"Deepgram returned {response.status_code}: {response.text}"
+            )
 
-            if status == "completed":
-                text = body.get("text", "")
-                words = body.get("words", []) or []
-                cleaned_words = [
-                    {
-                        "word": entry.get("text", ""),
-                        "confidence": float(entry.get("confidence", 0.0)),
-                    }
-                    for entry in words
-                ]
-                return text, cleaned_words
+        body = response.json()
+        return self._parse_response(body)
 
-            if status == "error":
-                raise AccentTranscriptionError(body.get("error", "Transcription failed"))
+    @staticmethod
+    def _parse_response(body: dict) -> tuple[str, List[dict]]:
+        try:
+            alternative = body["results"]["channels"][0]["alternatives"][0]
+        except (KeyError, IndexError) as exc:
+            raise AccentTranscriptionError(
+                f"Unexpected Deepgram response shape: {exc}"
+            ) from exc
 
-            time.sleep(poll_interval)
+        transcript = alternative.get("transcript", "")
+        raw_words: list[dict] = alternative.get("words", []) or []
 
-        raise AccentTranscriptionError("Transcription timed out")
+        words = [
+            {
+                "word": entry.get("punctuated_word") or entry.get("word", ""),
+                "confidence": float(entry.get("confidence", 0.0)),
+            }
+            for entry in raw_words
+            if entry.get("word")
+        ]
+
+        return transcript, words

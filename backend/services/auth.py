@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import HTTPException, Depends, status
@@ -10,7 +11,7 @@ from models import User
 from database import get_db
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-insecure-secret-key-change-in-production-1234567890")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")

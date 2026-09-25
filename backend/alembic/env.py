@@ -27,7 +27,7 @@ from core.db_base import Base          # ✅ now importable
 import models                           # ensure models register with Base
 target_metadata = Base.metadata
 
-load_dotenv()
+load_dotenv(BACKEND_DIR.parent / ".env")
 
 # --- choose sync DB URL for Alembic ---
 database_url = (

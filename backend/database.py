@@ -2,6 +2,7 @@
 
 import os
 import ssl
+from pathlib import Path
 from typing import Any, Dict
 from urllib.parse import parse_qs, urlparse, urlunparse
 
@@ -11,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 
 from core.db_base import Base
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 
 def _to_asyncpg_url(url: str) -> str:

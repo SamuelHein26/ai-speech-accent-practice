@@ -3,6 +3,8 @@ aiohttp==3.13.1
 aiosignal==1.4.0
 alembic==1.16.5
 annotated-types==0.7.0
+deepgram-sdk>=3.0.0
+google-genai>=2.3.0
 anyio==4.11.0
 async-timeout==5.0.1
 asyncpg==0.30.0
