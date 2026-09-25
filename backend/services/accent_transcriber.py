@@ -67,6 +67,7 @@ class AccentTranscriber:
             "punctuate": "true",
             "words": "true",          # include per-word confidence
             "smart_format": "true",
+            "filler_words": "true",
         }
 
         try:

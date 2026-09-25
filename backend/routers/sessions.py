@@ -128,17 +128,20 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
 
     try:
         transcriber = _get_transcriber()
-        transcript = await asyncio.to_thread(transcriber.transcribe_audio, wav_path)
+        transcript, timing_analysis = await asyncio.to_thread(
+            transcriber.transcribe_audio_with_timing, wav_path
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Transcription error: {e}")
 
     filler_word_count = count_filler_words(transcript)
+    annotated_transcript = timing_analysis.get("annotated_transcript", transcript)
 
     try:
         await session_manager.finalize_and_persist(
             db,
             session_id,
-            transcript_text=transcript,
+            transcript_text=annotated_transcript,
             wav_path=wav_path,
             duration_seconds=duration_seconds,
             filler_word_count=filler_word_count,
@@ -154,7 +157,7 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
         audio_url = f"/session/{session_id}/audio"
 
     return {
-        "final": transcript,
+        "final": annotated_transcript,
         "filler_word_count": filler_word_count,
         "audio_url": audio_url,
     }

@@ -66,8 +66,13 @@ _TOPIC_PROMPT_TEMPLATE = (
 )
 
 _FEEDBACK_PROMPT_TEMPLATE = (
-    "You are a speech evaluator. Analyze this transcript and return structured feedback "
-    "on clarity, fluency, and filler-word usage.\n\n"
+    "You are an expert speech and public speaking coach. Analyze this transcript and provide encouraging, structured feedback.\n"
+    "Note: If pauses are present, they are tagged as [pause X.Xs].\n\n"
+    "Evaluate the speaker across these areas:\n"
+    "1. Pacing & Rhythm: Comment on the flow, speed, and any awkward pauses or hesitations.\n"
+    "2. Clarity & Filler Words: Point out filler words ('um', 'uh', 'like', 'you know', etc.) and where speech was crisp.\n"
+    "3. Structure & Expression: Engagement, sentence flow, and vocal energy.\n"
+    "4. Top 2 Actionable Next Steps: Practical, concise tips for their next practice session.\n\n"
     "Transcript:\n{transcript}"
 )
 

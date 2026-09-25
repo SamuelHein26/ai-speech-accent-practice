@@ -43,6 +43,7 @@ class StreamingTranscriptionService:
         "&utterance_end_ms=1000"
         "&punctuate=true"
         "&smart_format=true"
+        "&filler_words=true"
     )
 
     def __init__(self, api_key: Optional[str] = None) -> None:
