@@ -219,14 +219,14 @@ export default function ProfilePage() {
       <Header />
       <main className="px-4 py-12 flex justify-center">
         <div className="w-full max-w-4xl space-y-8">
-          <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-red-100 dark:border-gray-700 p-8">
+          <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
             {loading ? (
               <p className="text-center text-gray-600 dark:text-gray-400">Loading profile...</p>
             ) : error ? (
               <div className="text-center space-y-4">
-                <p className="text-red-500 text-sm">{error}</p>
+                <p className="text-red-400 text-sm">{error}</p>
                 <button
-                  className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700"
+                  className="px-5 py-2.5 rounded-xl bg-red-600 text-white font-medium hover:bg-red-700 transition cursor-pointer"
                   onClick={() => router.push("/")}
                 >
                   Go to login
@@ -235,7 +235,7 @@ export default function ProfilePage() {
             ) : profile ? (
               <div className="space-y-6">
                 <header className="flex flex-col gap-2">
-                  <h1 className="text-3xl font-semibold text-red-600 dark:text-red-400">{profile.username}</h1>
+                  <h1 className="text-3xl font-bold text-red-400">{profile.username}</h1>
                   <p className="text-sm text-gray-600 dark:text-gray-400">{profile.email}</p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     Joined {formattedJoinedDate} • {profile.total_sessions} saved sessions
@@ -288,7 +288,7 @@ export default function ProfilePage() {
                     <button
                       type="submit"
                       disabled={updating}
-                      className="px-5 py-2.5 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 disabled:opacity-60"
+                      className="px-5 py-2.5 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 transition cursor-pointer disabled:opacity-60"
                     >
                       {updating ? "Saving..." : "Save changes"}
                     </button>
@@ -298,11 +298,11 @@ export default function ProfilePage() {
             ) : null}
           </section>
 
-          <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-red-100 dark:border-gray-700 p-8">
+          <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-semibold text-red-600 dark:text-red-400">Recent recordings</h2>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Recent recordings</h2>
               <button
-                className="text-sm text-red-600 dark:text-red-400 hover:underline"
+                className="text-sm text-red-400 hover:underline cursor-pointer"
                 onClick={() => router.push("/dashboard")}
               >
                 View dashboard
@@ -337,7 +337,7 @@ export default function ProfilePage() {
                       <button
                         onClick={() => handleDeleteRecording(session.session_id)}
                         disabled={deletingId === session.session_id}
-                        className="self-start sm:self-end px-3 py-1.5 rounded-lg border border-red-200 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="self-start sm:self-end px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {deletingId === session.session_id ? "Removing..." : "Delete"}
                       </button>
@@ -347,7 +347,7 @@ export default function ProfilePage() {
               </ul>
             )}
             {deleteError && (
-              <p className="mt-4 text-sm text-red-500" role="alert">
+              <p className="mt-4 text-sm text-red-400" role="alert">
                 {deleteError}
               </p>
             )}

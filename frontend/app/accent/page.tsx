@@ -193,16 +193,16 @@ export default function AccentPage() {
       <main className="px-4 py-12 flex justify-center">
         <div className="w-full max-w-3xl space-y-10">
           <header className="text-center space-y-2">
-            <p className="text-sm uppercase tracking-widest text-red-500 dark:text-red-400">Accent training</p>
-            <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">
+            <p className="text-sm font-semibold uppercase tracking-widest text-red-400">Accent training</p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-100">
               Choose your accent and practise with real-time feedback
             </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
               Pick a target accent, read the prompt aloud, and we&apos;ll highlight the words that need polish.
             </p>
           </header>
 
-          <section className="bg-white dark:bg-gray-900 border border-red-100 dark:border-gray-700 shadow-lg rounded-3xl p-8 space-y-6">
+          <section className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-lg rounded-3xl p-6 sm:p-8 space-y-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Target accent</h2>
@@ -218,10 +218,10 @@ export default function AccentPage() {
                       key={option}
                       type="button"
                       onClick={() => setSelectedAccent(option)}
-                      className={`px-4 py-2 text-sm font-medium rounded-full transition-colors ${
+                      className={`px-4 py-2 text-sm font-medium rounded-full transition-colors cursor-pointer ${
                         active
-                          ? "bg-red-500 text-white shadow"
-                          : "text-gray-600 dark:text-gray-300"
+                          ? "bg-red-600 text-white shadow"
+                          : "text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
                       }`}
                     >
                       {option === "american" ? "American English" : "British English"}
@@ -249,12 +249,12 @@ export default function AccentPage() {
                     setPlaybackUrl(null);
                   }}
                   disabled={isBusy}
-                  className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:border-red-200 hover:text-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-red-400 dark:hover:text-red-300"
+                  className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:border-red-400 hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-red-400 dark:hover:text-red-400 cursor-pointer"
                 >
                   Refresh phrase
                 </button>
               </div>
-                <div className="rounded-2xl border border-dashed border-red-200 dark:border-gray-700 bg-red-50/40 dark:bg-gray-800/60 p-6">
+                <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 bg-red-50/20 dark:bg-gray-800/40 p-6">
                   {isMounted ? (
                     <ParagraphFeedback feedback={result?.words} fallbackText={currentPhrase} />
                   ) : (
@@ -269,10 +269,10 @@ export default function AccentPage() {
                   type="button"
                   onClick={toggleRecording}
                   disabled={isUploading}
-                  className={`inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed ${
+                  className={`inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed ${
                     isRecording
                       ? "bg-red-600 text-white hover:bg-red-700"
-                      : "bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900"
+                      : "bg-red-600 text-white hover:bg-red-700"
                   }`}
                 >
                   {isRecording ? "Stop recording" : "Record attempt"}
@@ -287,7 +287,7 @@ export default function AccentPage() {
               </div>
             </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-red-400">{error}</p>}
 
             {result && (
               <div className="space-y-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60 p-6">
@@ -296,7 +296,7 @@ export default function AccentPage() {
                     <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
                       Clarity score
                     </p>
-                    <p className="text-3xl font-semibold text-gray-900 dark:text-gray-100">
+                    <p className="text-3xl font-semibold text-red-400">
                       {result.score.toFixed(0)} / 100
                     </p>
                   </div>
@@ -342,7 +342,7 @@ export default function AccentPage() {
 
 function PulseIndicator() {
   return (
-    <span className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+    <span className="flex items-center gap-2 text-sm text-red-400">
       <span className="relative flex h-3 w-3">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
         <span className="relative inline-flex h-3 w-3 rounded-full bg-red-600" />
@@ -450,9 +450,9 @@ function ParagraphFeedback({
         const isProblem = word.status !== "ok";
         const classes = [
           isAccentIssue
-            ? "underline decoration-2 decoration-red-500 text-red-600 dark:text-red-300"
+            ? "underline decoration-2 decoration-red-400 text-red-400"
             : isProblem
-            ? "underline decoration-red-400 text-red-600 dark:text-red-300"
+            ? "underline decoration-red-400 text-red-400"
             : "text-gray-800 dark:text-gray-200",
         ].join(" ");
 

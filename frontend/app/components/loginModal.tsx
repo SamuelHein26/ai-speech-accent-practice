@@ -60,7 +60,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50 animate-fadeIn">
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 w-[95%] max-w-md transition-all transform hover:scale-[1.01]">
-        <h2 className="text-3xl font-bold text-center text-red-600 dark:text-red-500 mb-6">
+        <h2 className="text-3xl font-bold text-center text-red-400 mb-6">
           Welcome Back
         </h2>
         <p className="text-center text-gray-600 dark:text-gray-400 mb-8 text-sm">
@@ -107,12 +107,12 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
             </div>
           </div>
 
-          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+          {error && <p className="text-red-400 text-sm text-center">{error}</p>}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50 shadow-md transition-transform transform hover:scale-[1.02] cursor-pointer"
+            className="w-full py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50 shadow-md transition cursor-pointer"
           >
             {loading ? "Logging in..." : "Login"}
           </button>
@@ -126,7 +126,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
             Cancel
           </button>
           <button
-            className="text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+            className="text-red-400 hover:underline cursor-pointer"
             onClick={() => {
               onClose();
               router.push("/register");

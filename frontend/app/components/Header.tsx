@@ -36,12 +36,12 @@ export default function Header() {
 
   const getActiveClass = (path: string): string =>
     pathname === path
-      ? "text-red-600 dark:text-red-400 border-b-2 border-red-600 dark:border-red-400"
-      : "text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400";
+      ? "text-red-400 border-b-2 border-red-400"
+      : "text-gray-700 dark:text-gray-300 hover:text-red-400";
 
   return (
-    <header className="w-full flex justify-between items-center px-8 py-4 shadow bg-white dark:bg-gray-900 transition-colors relative">
-      <h1 className="font-bold text-xl text-red-600 dark:text-red-500">
+    <header className="w-full flex justify-between items-center px-8 py-4 shadow bg-white dark:bg-gray-900 transition-colors relative border-b border-gray-100 dark:border-gray-800">
+      <h1 className="font-bold text-xl text-red-400">
         <Link href="/">ComfTalk</Link>
       </h1>
 
@@ -120,7 +120,7 @@ export default function Header() {
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="block w-full text-left px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 transition"
+                  className="block w-full text-left px-4 py-2 text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 transition"
                 >
                   Logout
                 </button>
@@ -147,7 +147,7 @@ export default function Header() {
             viewBox="0 0 24 24"
             strokeWidth={2}
             stroke="currentColor"
-            className="h-6 w-6 text-red-600 dark:text-red-400"
+            className="h-6 w-6 text-red-400"
           >
             {isMenuOpen ? (
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -167,8 +167,8 @@ export default function Header() {
               onClick={() => setIsMenuOpen(false)}
               className={`text-lg font-medium ${
                 pathname === path
-                  ? "text-red-600 dark:text-red-400 underline underline-offset-4"
-                  : "text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400"
+                  ? "text-red-400 underline underline-offset-4"
+                  : "text-gray-700 dark:text-gray-300 hover:text-red-400"
               } transition`}
             >
               {path === "/monologue"

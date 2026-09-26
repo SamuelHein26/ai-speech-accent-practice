@@ -29,7 +29,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${
                       isActive
                         ? "bg-red-600 text-white shadow"
-                        : "text-gray-600 hover:bg-red-50 dark:text-gray-300 dark:hover:bg-gray-800/70"
+                        : "text-gray-600 hover:text-red-400 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     }`}
                   >
                     {tab.label}

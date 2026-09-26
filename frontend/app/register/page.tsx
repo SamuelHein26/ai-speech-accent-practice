@@ -50,9 +50,9 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-800 transition-colors">
       <Header />
       <main className="flex flex-col items-center px-4 py-16">
-        <div className="w-full max-w-md bg-white dark:bg-gray-900 shadow-xl rounded-3xl p-8 space-y-6 border border-red-100 dark:border-gray-700">
+        <div className="w-full max-w-md bg-white dark:bg-gray-900 shadow-xl rounded-3xl p-8 space-y-6 border border-gray-200 dark:border-gray-700">
           <div className="space-y-2 text-center">
-            <h1 className="text-3xl font-semibold text-red-600 dark:text-red-400">Create your account</h1>
+            <h1 className="text-3xl font-semibold text-red-400">Create your account</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Join ComfTalk to save your sessions and track your progress.
             </p>
@@ -112,12 +112,12 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {error && <p className="text-sm text-red-500 text-center">{error}</p>}
+            {error && <p className="text-sm text-red-400 text-center">{error}</p>}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-red-600 text-white font-semibold shadow-lg hover:bg-red-700 transition disabled:opacity-60"
+              className="w-full py-3 rounded-xl bg-red-600 text-white font-semibold shadow hover:bg-red-700 transition cursor-pointer disabled:opacity-60"
             >
               {loading ? "Creating account..." : "Register"}
             </button>
@@ -126,7 +126,7 @@ export default function RegisterPage() {
           <p className="text-sm text-center text-gray-600 dark:text-gray-400">
             Already have an account? {" "}
             <button
-              className="text-red-600 dark:text-red-400 font-medium hover:underline"
+              className="text-red-400 font-medium hover:underline cursor-pointer"
               onClick={() => router.push("/")}
             >
               Log in from the home page

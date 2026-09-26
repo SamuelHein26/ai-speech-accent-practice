@@ -630,7 +630,7 @@ export default function MonologuePage() {
           if (
             ws.readyState === WebSocket.OPEN
           ) {
-            ws.send(int16);
+            ws.send(int16.buffer as ArrayBuffer);
           }
         };
 
@@ -853,7 +853,7 @@ export default function MonologuePage() {
               </h2>
               <p className="mx-auto max-w-2xl text-gray-700 dark:text-gray-300 text-lg leading-relaxed">
                 Practice your speaking fluency for up to{" "}
-                <span className="font-semibold text-red-600 dark:text-red-400">
+                <span className="font-semibold text-red-400">
                   3 minutes
                 </span>
                 . If you pause for too long, you’ll
@@ -865,28 +865,78 @@ export default function MonologuePage() {
           )}
 
           <section className="flex flex-col items-center mb-8">
-            <div className="flex flex-wrap items-center justify-center gap-4 mb-6">
+            <div className="flex flex-col items-center justify-center mb-6">
               {!isRecording && !isProcessing ? (
-                <button
-                  onClick={startRecording}
-                  className="px-8 py-3.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-full shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] cursor-pointer"
-                >
-                  Start Recording
-                </button>
+                <div className="flex flex-col items-center">
+                  <button
+                    onClick={startRecording}
+                    aria-label="Start recording"
+                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-md flex items-center justify-center cursor-pointer transition"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.8}
+                      stroke="currentColor"
+                      className="h-12 w-12 sm:h-14 sm:w-14"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 1.75a3.25 3.25 0 00-3.25 3.25v6a3.25 3.25 0 006.5 0v-6A3.25 3.25 0 0012 1.75zM5 10.25a7 7 0 0014 0M12 17.25v4.5"
+                      />
+                    </svg>
+                  </button>
+                  <p className="mt-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Click to Start Recording
+                  </p>
+                </div>
               ) : isRecording ? (
-                <button
-                  onClick={stopRecording}
-                  className="px-8 py-3.5 bg-red-600 text-white font-semibold rounded-full shadow-lg hover:bg-red-700 transition-all cursor-pointer"
-                >
-                  Stop Recording
-                </button>
+                <div className="flex flex-col items-center">
+                  <button
+                    onClick={stopRecording}
+                    aria-label="Stop recording"
+                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-md flex items-center justify-center cursor-pointer transition"
+                  >
+                    <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-md bg-white" />
+                  </button>
+                  <p className="mt-4 text-sm font-semibold text-red-400">
+                    Recording in progress • Click to Stop
+                  </p>
+                </div>
               ) : (
-                <button
-                  disabled
-                  className="px-8 py-3.5 bg-gray-400 text-white font-semibold rounded-full shadow cursor-not-allowed"
-                >
-                  Processing...
-                </button>
+                <div className="flex flex-col items-center">
+                  <button
+                    disabled
+                    aria-label="Processing audio"
+                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-gray-400 text-white shadow-md flex items-center justify-center cursor-not-allowed transition"
+                  >
+                    <svg
+                      className="animate-spin h-10 w-10 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v8H4z"
+                      />
+                    </svg>
+                  </button>
+                  <p className="mt-4 text-sm font-medium text-gray-500 dark:text-gray-400">
+                    Processing your monologue...
+                  </p>
+                </div>
               )}
             </div>
 
@@ -896,7 +946,7 @@ export default function MonologuePage() {
                 <span
                   className={`font-mono text-3xl font-semibold ${
                     isNearLimit
-                      ? "text-red-600 dark:text-red-400"
+                      ? "text-red-400"
                       : "text-gray-900 dark:text-gray-100"
                   }`}
                 >
@@ -906,7 +956,7 @@ export default function MonologuePage() {
                   <span
                     className={`text-xs ${
                       isNearLimit
-                        ? "text-red-600 dark:text-red-400"
+                        ? "text-red-400"
                         : "text-gray-500 dark:text-gray-400"
                     }`}
                   >
@@ -934,13 +984,13 @@ export default function MonologuePage() {
           {showInteractivePanels && (
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full mb-10">
               {/* --- Live Transcript panel (col 1) --- */}
-              <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700">
+              <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-3xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="text-lg font-semibold">
                     Live Transcript
                   </h3>
                   {isRecording && (
-                    <span className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-2 py-1 rounded-full">
+                    <span className="text-xs font-medium text-red-400 bg-red-50 dark:bg-red-950/40 px-2 py-1 rounded-full border border-red-200/40 dark:border-red-800/40">
                       Recording…
                     </span>
                   )}
@@ -952,7 +1002,7 @@ export default function MonologuePage() {
                 </p>
               </div>
 
-              <div className="bg-slate-50 dark:bg-slate-900/60 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700">
+              <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-3xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="text-lg font-semibold">
                     Topic Suggestions
@@ -969,7 +1019,7 @@ export default function MonologuePage() {
                       !isRecording ||
                       isFetchingSuggestions
                     }
-                    className="px-4 py-2 rounded-full text-sm font-medium bg-red-500 text-white shadow hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 rounded-full text-sm font-medium bg-red-600 text-white shadow hover:bg-red-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isFetchingSuggestions
                       ? "Generating..."
@@ -977,7 +1027,7 @@ export default function MonologuePage() {
                   </button>
                 </div>
 
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                   We&apos;ll surface prompts
                   automatically after about{" "}
                   {suggestionLeadSeconds} seconds of
@@ -985,7 +1035,7 @@ export default function MonologuePage() {
                 </p>
 
                 {isFetchingSuggestions && (
-                  <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
+                  <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
                     Listening to your last
                     thoughts and preparing fresh
                     prompts...
@@ -993,7 +1043,7 @@ export default function MonologuePage() {
                 )}
 
                 {suggestionError && (
-                  <p className="mt-4 text-sm text-red-600 dark:text-red-400">
+                  <p className="mt-4 text-sm text-red-400">
                     {suggestionError}
                   </p>
                 )}
@@ -1001,7 +1051,7 @@ export default function MonologuePage() {
                 {!isFetchingSuggestions &&
                   !suggestionError &&
                   suggestions.length === 0 && (
-                    <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
+                    <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
                       Keep the monologue flowing.
                       Pause too long and
                       we&apos;ll jump in with
@@ -1017,9 +1067,9 @@ export default function MonologuePage() {
                       (topic, index) => (
                         <li
                           key={`${topic}-${index}`}
-                          className="flex items-start gap-3 rounded-2xl bg-white dark:bg-gray-800/80 px-4 py-3 shadow-sm border border-slate-200 dark:border-slate-700"
+                          className="flex items-start gap-3 rounded-2xl bg-gray-50 dark:bg-gray-800/80 px-4 py-3 shadow-sm border border-gray-200 dark:border-gray-700"
                         >
-                          <span className="mt-0.5 text-sm font-semibold text-red-500 dark:text-red-400">
+                          <span className="mt-0.5 text-sm font-semibold text-red-400">
                             {index + 1}.
                           </span>
                           <span className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
@@ -1055,7 +1105,7 @@ export default function MonologuePage() {
           )}
 
           {error && (
-            <section className="bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 p-4 rounded-xl shadow mb-8 border border-red-300/60 dark:border-red-700/60">
+            <section className="bg-red-50 dark:bg-red-950/40 text-red-400 p-4 rounded-2xl shadow mb-8 border border-red-200 dark:border-red-900/60">
               <p className="font-semibold">
                 Error:
               </p>
@@ -1066,13 +1116,13 @@ export default function MonologuePage() {
           )}
 
           {finalTranscript && (
-            <section className="w-full bg-green-50 dark:bg-green-900/40 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 mb-8 border border-green-300/50 dark:border-green-800/50">
+            <section className="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-3xl shadow-lg p-6 sm:p-8 mb-8 border border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold mb-2">
                 Final Transcript
               </h3>
               {fillerWordCount !== null && (
                 <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-                  Filler words detected: <span className="font-semibold">{fillerWordCount}</span>
+                  Filler words detected: <span className="font-semibold text-red-400">{fillerWordCount}</span>
                 </p>
               )}
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">
@@ -1082,7 +1132,7 @@ export default function MonologuePage() {
           )}
 
           {(isFetchingFeedback || feedback || feedbackError) && (
-            <section className="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700 mb-8">
+            <section className="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-3xl shadow-lg p-6 sm:p-8 border border-gray-200 dark:border-gray-700 mb-8">
               <div className="flex items-center justify-between gap-3 mb-2">
                 <h3 className="text-lg font-semibold">AI Feedback</h3>
                 {isFetchingFeedback && (
@@ -1093,7 +1143,7 @@ export default function MonologuePage() {
               </div>
 
               {feedbackError && (
-                <p className="text-sm text-red-600 dark:text-red-400 mb-3">
+                <p className="text-sm text-red-400 mb-3">
                   {feedbackError}
                 </p>
               )}
@@ -1113,7 +1163,7 @@ export default function MonologuePage() {
           )}
 
           {audioUrl && (
-            <section className="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-2xl shadow p-6 border border-slate-200 dark:border-slate-700">
+            <section className="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-3xl shadow-lg p-6 sm:p-8 border border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold mb-2">
                 Playback
               </h3>

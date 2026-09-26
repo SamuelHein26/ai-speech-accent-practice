@@ -7,17 +7,17 @@ export default function Footer() {
         <div className="flex space-x-6 text-gray-700 dark:text-gray-300 text-sm font-medium">
           <Link
             href="/about"
-            className="hover:text-red-600 dark:hover:text-red-400 transition"
+            className="hover:text-red-400 transition"
           >
             About
           </Link>
           <button 
-            className="hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer"
+            className="hover:text-red-400 transition cursor-pointer"
           >
             Privacy Policy
           </button>
           <button
-            className="hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer"
+            className="hover:text-red-400 transition cursor-pointer"
           >
             Terms of Service
           </button>

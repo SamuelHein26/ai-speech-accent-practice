@@ -7,6 +7,16 @@ venv/
 *.sqlite3
 db.sqlite3
 
+# Audio recordings & attempts (user data — never commit)
+backend/accent_attempts/
+backend/recordings/
+*.webm
+*.wav
+*.mp3
+*.ogg
+*.m4a
+*.flac
+
 # Frontend
 node_modules/
 .next/

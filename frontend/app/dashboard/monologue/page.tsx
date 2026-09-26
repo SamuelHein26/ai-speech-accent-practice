@@ -266,13 +266,13 @@ export default function MonologueDashboardPage() {
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-2 text-center">
-        <h1 className="text-3xl font-semibold text-red-600 dark:text-red-400">Your monologue dashboard</h1>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
+        <h1 className="text-3xl sm:text-4xl font-bold text-red-400">Your monologue dashboard</h1>
+        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
           Review your practice sessions, revisit transcripts, and listen to saved recordings.
         </p>
       </header>
 
-      <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-red-100 dark:border-gray-700 p-8">
+      <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
         <div className="flex flex-col gap-1 mb-6 text-center">
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Monologue sessions</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -282,7 +282,7 @@ export default function MonologueDashboardPage() {
         {loading ? (
           <p className="text-center text-gray-600 dark:text-gray-400">Loading session history...</p>
         ) : error ? (
-          <p className="text-center text-red-500 text-sm">{error}</p>
+          <p className="text-center text-red-400 text-sm">{error}</p>
         ) : !hasRecordings ? (
           <p className="text-center text-gray-600 dark:text-gray-400">
             You have no saved sessions yet. Start a monologue to build your library!
@@ -290,7 +290,7 @@ export default function MonologueDashboardPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-              <thead className="bg-red-50 dark:bg-gray-800/60">
+              <thead className="bg-gray-100 dark:bg-gray-800/80">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                     Recorded
@@ -318,7 +318,7 @@ export default function MonologueDashboardPage() {
                   const audioUrl = audioEntry?.url;
                   const audioType = audioEntry?.mimeType || "audio/wav";
                   return (
-                    <tr key={session.session_id} className="hover:bg-red-50/60 dark:hover:bg-gray-800/60 transition">
+                    <tr key={session.session_id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/50 transition">
                       <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-200">
                         {new Date(session.created_at).toLocaleString()}
                       </td>
@@ -337,7 +337,7 @@ export default function MonologueDashboardPage() {
                         {session.audio_available ? (
                           <>
                             <button
-                              className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-60"
+                              className="px-3.5 py-1.5 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition cursor-pointer text-sm disabled:opacity-60"
                               onClick={() => handleLoadAudio(session.session_id)}
                               disabled={loadingAudioId === session.session_id}
                             >
@@ -362,7 +362,7 @@ export default function MonologueDashboardPage() {
                         <button
                           onClick={() => handleDeleteRecording(session.session_id)}
                           disabled={deletingId === session.session_id}
-                          className="px-4 py-2 rounded-lg border border-red-200 text-red-600 font-medium hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-red-400 font-medium hover:bg-red-50 dark:hover:bg-red-950/30 transition cursor-pointer text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           {deletingId === session.session_id ? "Removing..." : "Delete"}
                         </button>
@@ -381,10 +381,10 @@ export default function MonologueDashboardPage() {
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}
-                className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                className={`px-3 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer ${
                   page === currentPage
                     ? "bg-red-600 text-white shadow"
-                    : "bg-red-50 text-red-600 hover:bg-red-100 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
                 }`}
               >
                 {page}
@@ -394,10 +394,10 @@ export default function MonologueDashboardPage() {
         )}
 
         {audioError && (
-          <p className="mt-4 text-center text-sm text-red-500">{audioError}</p>
+          <p className="mt-4 text-center text-sm text-red-400">{audioError}</p>
         )}
         {deleteError && (
-          <p className="mt-2 text-center text-sm text-red-500" role="alert">
+          <p className="mt-2 text-center text-sm text-red-400" role="alert">
             {deleteError}
           </p>
         )}
