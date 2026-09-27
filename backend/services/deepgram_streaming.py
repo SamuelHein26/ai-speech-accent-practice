@@ -1,23 +1,19 @@
 """Deepgram real-time streaming proxy.
 
-Replaces the former AssemblyAI streaming proxy.  The FastAPI WebSocket
-at /ws/stream is unchanged; this service:
+The FastAPI WebSocket at /ws/stream forwards raw PCM audio from the browser
+to Deepgram's streaming WebSocket (nova-2, 16 kHz) and translates Deepgram's
+response JSON into the envelope the frontend expects:
 
-  1. Opens a Deepgram streaming WebSocket (nova-2, 16 kHz PCM).
-  2. Forwards raw PCM bytes from the browser to Deepgram.
-  3. Translates Deepgram's response JSON into the frontend's expected
-     envelope so the frontend (monologue/page.tsx) needs no changes:
+  Frontend receives:
+    {"type": "Turn", "transcript": "...", "is_final": bool}
+    {"type": "Begin"}   — sent once on connect
+    {"type": "Error", "reason": "..."}
 
-     Frontend expects:
-       {"type": "Turn", "transcript": "...", "is_final": bool}
-       {"type": "Begin"}   — sent once on connect
-       {"type": "Error", "reason": "..."}
-
-     Deepgram sends:
-       {"type": "Results", "channel": {"alternatives": [{"transcript": "..."}]},
-        "is_final": bool, "speech_final": bool}
-       {"type": "Metadata"}   — ignored
-       {"type": "UtteranceEnd"}  — maps to a final Turn flush
+  Deepgram sends:
+    {"type": "Results", "channel": {"alternatives": [{"transcript": "..."}]},
+     "is_final": bool, "speech_final": bool}
+    {"type": "Metadata"}   — ignored
+    {"type": "UtteranceEnd"}  — ignored (browser handles boundaries via is_final)
 """
 
 from __future__ import annotations
@@ -31,7 +27,7 @@ import aiohttp
 from fastapi import WebSocket, WebSocketDisconnect
 
 
-class StreamingTranscriptionService:
+class DeepgramStreamingService:
 
     _DG_WS_URL = (
         "wss://api.deepgram.com/v1/listen"
@@ -83,7 +79,7 @@ class StreamingTranscriptionService:
         try:
             async for msg in dg_ws:
                 if msg.type == aiohttp.WSMsgType.TEXT:
-                    translated = StreamingTranscriptionService._translate(msg.data)
+                    translated = DeepgramStreamingService._translate(msg.data)
                     if translated:
                         await client_ws.send_text(translated)
                 elif msg.type == aiohttp.WSMsgType.ERROR:

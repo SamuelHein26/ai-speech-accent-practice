@@ -13,7 +13,7 @@ from schemas import (
     UserProfileResponse,
     UserUpdate,
 )
-from services.auth import (
+from services.auth_service import (
     hash_password,
     verify_password,
     create_access_token,

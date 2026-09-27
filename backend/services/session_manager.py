@@ -8,12 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Session
-from services.storage import S3Storage, StorageError
+from services.audio_storage import AudioStorage, StorageError
 
 
 class SessionManager:
 
-    def __init__(self, workdir: Path, storage: S3Storage | None = None):
+    def __init__(self, workdir: Path, storage: AudioStorage | None = None):
         self.workdir = Path(workdir)
         self.workdir.mkdir(parents=True, exist_ok=True)
         self.storage = storage

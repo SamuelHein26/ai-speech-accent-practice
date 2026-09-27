@@ -53,15 +53,18 @@ def _resolve_ipv4_host(url: str) -> str:
         return url
 
 
-DATABASE_URL = (
+raw_db_url = (
     os.getenv("DATABASE_URL")
     or os.getenv("DATABASE_URL_SYNC")
     or os.getenv("RENDER_DATABASE_URL")
     or "postgresql+asyncpg://postgres:postgres@localhost:5432/comftalk"
 )
 
-# Resolve to IPv4 to avoid IPv6 connectivity issues with some Render instances
-DATABASE_URL = _resolve_ipv4_host(DATABASE_URL)
+raw_parsed = urlparse(raw_db_url)
+original_hostname = raw_parsed.hostname
+
+# Resolve to IPv4 to avoid IPv6 connectivity issues with some cloud instances
+DATABASE_URL = _resolve_ipv4_host(raw_db_url)
 
 ASYNC_URL = _to_asyncpg_url(DATABASE_URL)
 
@@ -69,8 +72,7 @@ ASYNC_URL = _to_asyncpg_url(DATABASE_URL)
 connect_args: Dict[str, Any] = {}
 
 explicit_ssl = os.getenv("DATABASE_SSL")
-parsed = urlparse(DATABASE_URL)
-query_params = {k: v[0].lower() for k, v in parse_qs(parsed.query).items() if v}
+query_params = {k: v[0].lower() for k, v in parse_qs(raw_parsed.query).items() if v}
 sslmode = query_params.get("sslmode")
 
 enable_ssl = False
@@ -82,12 +84,17 @@ elif sslmode in {"require", "verify-ca", "verify-full"}:
 if enable_ssl:
     ssl_context = ssl.create_default_context()
     connect_args["ssl"] = ssl_context
-    print("Database SSL: ENABLED")
+    if original_hostname:
+        connect_args["server_hostname"] = original_hostname
+    print(f"Database SSL: ENABLED (server_hostname: {original_hostname})")
 else:
     print("Database SSL: DISABLED (local development)")
 
-# Additional connect args for asyncpg to prefer IPv4
+# Additional connect args for asyncpg to prefer IPv4 and support Supabase/PgBouncer poolers
 connect_args["server_settings"] = {"jit": "off"}
+# Disable statement cache for connection poolers (e.g. Supabase port 6543)
+connect_args["statement_cache_size"] = 0
+connect_args["prepared_statement_cache_size"] = 0
 
 # Create async engine
 engine = create_async_engine(

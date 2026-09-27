@@ -4,19 +4,19 @@ Supports three backends, selected via the ``LLM_BACKEND`` environment
 variable:
 
   LLM_BACKEND=gemini  (default / production)
-      Uses the google-genai SDK with ``gemini-3.5-flash-lite``.
-      Requires GEMINI_API_KEY.
+      Uses the google-genai SDK with ``gemini-2.5-flash``.
+      Requires GEMINI_API_KEY. Optional GEMINI_MODEL.
 
   LLM_BACKEND=ollama  (local development)
-      Uses the OpenAI SDK pointed at a local Ollama server.
+      Uses the OpenAI-compatible SDK pointed at a local Ollama server.
       Requires OLLAMA_BASE_URL (default: http://localhost:11434/v1).
       Model is set via OLLAMA_MODEL (default: llama3.2:3b).
 
-  LLM_BACKEND=openai  (legacy fallback)
-      Uses the OpenAI SDK with OPENAI_API_KEY (original behaviour).
+  LLM_BACKEND=openai  (optional fallback)
+      Uses the OpenAI SDK with OPENAI_API_KEY.
 
-The public interface — generate_topics() and analyze_speech() — is
-unchanged so main.py requires only a one-line update.
+The public interface — ``generate_topics()`` and ``analyze_speech()`` — is
+the same across all backends.
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ class LLMService:
 # ---------------------------------------------------------------------------
 
 class _GeminiService(LLMService):
-    """Uses google-genai SDK with gemini-3.5-flash-lite."""
+    """Uses google-genai SDK with gemini-2.5-flash (or GEMINI_MODEL)."""
 
     def __init__(self) -> None:
         from google import genai  # type: ignore[import-untyped]
@@ -110,15 +110,15 @@ class _GeminiService(LLMService):
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY is not configured")
+        self._model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         self._client = genai.Client(api_key=api_key)
 
     def _complete(self, prompt: str) -> str:
-        interaction = self._client.interactions.create(
-            model="gemini-3.5-flash-lite",
-            input=prompt,
-            store=False,
+        response = self._client.models.generate_content(
+            model=self._model,
+            contents=prompt,
         )
-        return (interaction.output_text or "").strip()
+        return (response.text or "").strip()
 
 
 # ---------------------------------------------------------------------------
@@ -166,9 +166,3 @@ class _OpenAIService(LLMService):
         return (completion.choices[0].message.content or "").strip()
 
 
-# ---------------------------------------------------------------------------
-# Public alias kept for backwards-compat with main.py import
-# ---------------------------------------------------------------------------
-
-#: Alias so ``from services.openai_service import OpenAIService`` still works.
-OpenAIService = LLMService

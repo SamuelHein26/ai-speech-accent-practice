@@ -5,8 +5,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from services.openai_service import _build_service as _build_llm_service
-from routers import users, sessions, auth_router, streaming, accent
+from services.llm_service import _build_service as _build_llm_service
+from routers import users, sessions, auth, streaming, accent
 from schemas import (
     FeedbackRequest,
     FeedbackResponse,
@@ -47,7 +47,7 @@ app.add_middleware(
 # === Include Routers ===
 app.include_router(users.router)
 app.include_router(sessions.router)
-app.include_router(auth_router.router)
+app.include_router(auth.router)
 app.include_router(streaming.router)
 app.include_router(accent.router)
 

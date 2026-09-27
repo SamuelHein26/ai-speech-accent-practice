@@ -12,27 +12,27 @@ from database import get_db
 from dotenv import load_dotenv
 from models import Session, User
 from schemas import SessionSummary
-from services.auth import get_current_user
+from services.auth_service import get_current_user
 from services.session_manager import SessionManager
-from services.storage import S3Storage, StorageError
-from services.transcription_service import TranscriptionService
+from services.audio_storage import AudioStorage, StorageError
+from services.deepgram_service import DeepgramService
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 router = APIRouter(prefix="/session", tags=["Sessions"])
 
-storage = S3Storage()
+storage = AudioStorage()
 session_manager = SessionManager(Path("./live_sessions"), storage=storage)
 
-_transcriber: Optional[TranscriptionService] = None
+_transcriber: Optional[DeepgramService] = None
 
-def _get_transcriber() -> TranscriptionService:
+def _get_transcriber() -> DeepgramService:
     global _transcriber
     if _transcriber is None:
         key = os.getenv("DEEPGRAM_API_KEY")
         if not key:
             raise HTTPException(status_code=500, detail="Missing Deepgram API key.")
-        _transcriber = TranscriptionService(key)
+        _transcriber = DeepgramService(key)
     return _transcriber
 
 FILLER_PHRASES: tuple[tuple[str, ...], ...] = (
@@ -129,7 +129,7 @@ async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
     try:
         transcriber = _get_transcriber()
         transcript, timing_analysis = await asyncio.to_thread(
-            transcriber.transcribe_audio_with_timing, wav_path
+            transcriber.transcribe_with_timing, wav_path
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Transcription error: {e}")

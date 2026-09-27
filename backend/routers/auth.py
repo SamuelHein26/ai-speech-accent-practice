@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from services.auth import verify_password, create_access_token, get_current_user
+from services.auth_service import verify_password, create_access_token, get_current_user
 from models import User
 from database import get_db
 

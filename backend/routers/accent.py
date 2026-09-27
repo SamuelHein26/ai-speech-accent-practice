@@ -9,35 +9,34 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, Upl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import get_db                    
-from models import PracticeAttempt, User       
+from database import get_db
+from models import PracticeAttempt, User
 from schemas import AccentAttemptSummary, AccentTrainingResponse
-from services.accent_engine import (           
+from services.accent_engine import (
     RecognisedWord,
     build_tip,
     evaluate_attempt,
 )
-from services.accent_transcriber import (      
-    AccentTranscriber,
-    AccentTranscriptionError,
+from services.deepgram_service import (
+    DeepgramAccentService,
+    DeepgramError,
 )
-from services.s3_audio_storage import S3AudioStorage  
-from services.storage import StorageError
-from services.auth import get_current_user
+from services.audio_storage import AudioStorage, StorageError
+from services.auth_service import get_current_user
 
 
 router = APIRouter(prefix="/accent", tags=["accent"])
-storage = S3AudioStorage()
+storage = AudioStorage(prefix="accent-attempts", local_dir="./accent_attempts")
 
-_transcriber: Optional[AccentTranscriber] = None
+_transcriber: Optional[DeepgramAccentService] = None
 
 
-def _get_transcriber() -> AccentTranscriber:
+def _get_transcriber() -> DeepgramAccentService:
     global _transcriber
     if _transcriber is None:
         try:
-            _transcriber = AccentTranscriber()
-        except ValueError as exc: 
+            _transcriber = DeepgramAccentService()
+        except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc))
     return _transcriber
 
@@ -109,7 +108,7 @@ async def train_accent(
             transcriber.transcribe_with_words,
             audio_bytes,
         )
-    except AccentTranscriptionError as exc:
+    except DeepgramError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     recognised_words: List[RecognisedWord] = [
         RecognisedWord(

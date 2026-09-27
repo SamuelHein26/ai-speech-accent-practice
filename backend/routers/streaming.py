@@ -1,13 +1,13 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from services.streaming_transcription_service import StreamingTranscriptionService
+from services.deepgram_streaming import DeepgramStreamingService
 
 router = APIRouter(tags=["Realtime"])
 _service = None
 
-def _get_streaming_service() -> StreamingTranscriptionService:
+def _get_streaming_service() -> DeepgramStreamingService:
     global _service
     if _service is None:
-        _service = StreamingTranscriptionService()
+        _service = DeepgramStreamingService()
     return _service
 
 @router.websocket("/ws/stream")
