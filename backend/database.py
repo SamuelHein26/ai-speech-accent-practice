@@ -29,6 +29,21 @@ def _to_asyncpg_url(url: str) -> str:
     return url.replace("+psycopg2", "+asyncpg")
 
 
+def _clean_asyncpg_url(url: str) -> str:
+    """Strip query parameters (like sslmode) that asyncpg does not accept in connection URLs."""
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+    parsed = urlparse(url)
+    if not parsed.query:
+        return url
+    q = parse_qs(parsed.query, keep_blank_values=True)
+    # asyncpg does not recognize sslmode / gssencmode / channel_binding
+    q.pop("sslmode", None)
+    q.pop("gssencmode", None)
+    q.pop("channel_binding", None)
+    clean_query = urlencode(q, doseq=True)
+    return urlunparse(parsed._replace(query=clean_query))
+
+
 def _resolve_ipv4_host(url: str) -> str:
     """Resolve hostnames to IPv4 addresses to avoid IPv6 connectivity issues."""
 
@@ -82,7 +97,7 @@ if enable_ssl:
 else:
     DATABASE_URL = _resolve_ipv4_host(raw_db_url)
 
-ASYNC_URL = _to_asyncpg_url(DATABASE_URL)
+ASYNC_URL = _clean_asyncpg_url(_to_asyncpg_url(DATABASE_URL))
 
 connect_args: Dict[str, Any] = {}
 
