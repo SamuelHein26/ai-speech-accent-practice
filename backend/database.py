@@ -63,14 +63,7 @@ raw_db_url = (
 raw_parsed = urlparse(raw_db_url)
 original_hostname = raw_parsed.hostname
 
-# Resolve to IPv4 to avoid IPv6 connectivity issues with some cloud instances
-DATABASE_URL = _resolve_ipv4_host(raw_db_url)
-
-ASYNC_URL = _to_asyncpg_url(DATABASE_URL)
-
-# SSL configuration: opt-in via env var or automatically honour sslmode=require
-connect_args: Dict[str, Any] = {}
-
+# Check SSL configuration: opt-in via env var or automatically honour sslmode=require
 explicit_ssl = os.getenv("DATABASE_SSL")
 query_params = {k: v[0].lower() for k, v in parse_qs(raw_parsed.query).items() if v}
 sslmode = query_params.get("sslmode")
@@ -81,12 +74,22 @@ if explicit_ssl is not None:
 elif sslmode in {"require", "verify-ca", "verify-full"}:
     enable_ssl = True
 
+# When SSL is enabled (e.g. Supabase), do NOT resolve hostname to a raw IP,
+# because TLS certificate validation requires the real domain name (e.g. *.pooler.supabase.com).
+# For local development without SSL, resolve to IPv4 to prevent IPv6 loopback issues.
+if enable_ssl:
+    DATABASE_URL = raw_db_url
+else:
+    DATABASE_URL = _resolve_ipv4_host(raw_db_url)
+
+ASYNC_URL = _to_asyncpg_url(DATABASE_URL)
+
+connect_args: Dict[str, Any] = {}
+
 if enable_ssl:
     ssl_context = ssl.create_default_context()
     connect_args["ssl"] = ssl_context
-    if original_hostname:
-        connect_args["server_hostname"] = original_hostname
-    print(f"Database SSL: ENABLED (server_hostname: {original_hostname})")
+    print(f"Database SSL: ENABLED for {original_hostname}")
 else:
     print("Database SSL: DISABLED (local development)")
 

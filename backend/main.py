@@ -1,8 +1,10 @@
 import os
 import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from services.llm_service import _build_service as _build_llm_service
@@ -17,7 +19,36 @@ from schemas import (
 # Load .env from the project root (one level above backend/)
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Auto-create tables in Supabase / PostgreSQL if migrations were not run
+    try:
+        from core.db_base import Base
+        from database import engine
+        import models  # noqa: F401
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("[Startup] Database tables verified / created successfully.")
+    except Exception as exc:
+        print(f"[Startup] Database initialization notice: {exc}")
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+# === Global Exception Handler for CORS-compliant error responses ===
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal Server Error: {str(exc)}"},
+    )
+
+
 # === CORS Config ===
 default_origins = [
     "http://localhost:3000",
@@ -25,19 +56,23 @@ default_origins = [
     "https://ai-speech-accent-practice.vercel.app",
 ]
 
-configured_origins = os.getenv("CORS_ORIGINS", "").split(",")
-configured_origins = [origin.strip() for origin in configured_origins if origin.strip()]
+configured_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
 
 frontend_url = os.getenv("FRONTEND_URL")
-if frontend_url:
+if frontend_url and frontend_url.strip():
     configured_origins.append(frontend_url.strip())
 
-origins = configured_origins or default_origins
-
+# Always preserve localhost and default Vercel domains, plus any custom configured origins
+origins = list(dict.fromkeys(default_origins + configured_origins))
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
