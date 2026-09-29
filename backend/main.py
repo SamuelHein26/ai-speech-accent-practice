@@ -54,7 +54,7 @@ app.include_router(accent.router)
 # === Dependency Setup ===
 openai_service = _build_llm_service()
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def health():
     return {"status": "ok"}
 
