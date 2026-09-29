@@ -103,6 +103,10 @@ connect_args: Dict[str, Any] = {}
 
 if enable_ssl:
     ssl_context = ssl.create_default_context()
+    # Supabase's transaction pooler uses a self-signed certificate;
+    # skip verification but keep the connection encrypted.
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
     connect_args["ssl"] = ssl_context
     print(f"Database SSL: ENABLED for {original_hostname}")
 else:
