@@ -1,24 +1,3 @@
-"""LLM service for topic suggestions and speech feedback.
-
-Supports three backends, selected via the ``LLM_BACKEND`` environment
-variable:
-
-  LLM_BACKEND=gemini  (default / production)
-      Uses the google-genai SDK with ``gemini-2.5-flash``.
-      Requires GEMINI_API_KEY. Optional GEMINI_MODEL.
-
-  LLM_BACKEND=ollama  (local development)
-      Uses the OpenAI-compatible SDK pointed at a local Ollama server.
-      Requires OLLAMA_BASE_URL (default: http://localhost:11434/v1).
-      Model is set via OLLAMA_MODEL (default: llama3.2:3b).
-
-  LLM_BACKEND=openai  (optional fallback)
-      Uses the OpenAI SDK with OPENAI_API_KEY.
-
-The public interface — ``generate_topics()`` and ``analyze_speech()`` — is
-the same across all backends.
-"""
-
 from __future__ import annotations
 
 import os

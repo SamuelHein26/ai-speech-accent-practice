@@ -3,12 +3,14 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "../components/Header";
+import LoginModal from "../components/loginModal";
 
 const API_BASE =
   (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_BASE_URL) ||
   "http://127.0.0.1:8000";
 
 export default function RegisterPage() {
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -127,11 +129,13 @@ export default function RegisterPage() {
             Already have an account? {" "}
             <button
               className="text-red-400 font-medium hover:underline cursor-pointer"
-              onClick={() => router.push("/")}
+              onClick={() => setIsLoginOpen(true)}
             >
-              Log in from the home page
+              Log in 
             </button>
           </p>
+
+          <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
         </div>
       </main>
     </div>

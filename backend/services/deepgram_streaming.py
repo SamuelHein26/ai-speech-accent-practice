@@ -1,21 +1,3 @@
-"""Deepgram real-time streaming proxy.
-
-The FastAPI WebSocket at /ws/stream forwards raw PCM audio from the browser
-to Deepgram's streaming WebSocket (nova-2, 16 kHz) and translates Deepgram's
-response JSON into the envelope the frontend expects:
-
-  Frontend receives:
-    {"type": "Turn", "transcript": "...", "is_final": bool}
-    {"type": "Begin"}   — sent once on connect
-    {"type": "Error", "reason": "..."}
-
-  Deepgram sends:
-    {"type": "Results", "channel": {"alternatives": [{"transcript": "..."}]},
-     "is_final": bool, "speech_final": bool}
-    {"type": "Metadata"}   — ignored
-    {"type": "UtteranceEnd"}  — ignored (browser handles boundaries via is_final)
-"""
-
 from __future__ import annotations
 
 import json
@@ -47,9 +29,7 @@ class DeepgramStreamingService:
         if not self.api_key:
             raise ValueError("DEEPGRAM_API_KEY is not configured")
 
-    # ------------------------------------------------------------------
     # Public entry point — called by the /ws/stream router
-    # ------------------------------------------------------------------
 
     async def proxy(self, client_ws: WebSocket) -> None:
         headers = {"Authorization": f"Token {self.api_key}"}
@@ -66,9 +46,9 @@ class DeepgramStreamingService:
                     self._client_to_dg(client_ws, dg_ws),
                 )
 
-    # ------------------------------------------------------------------
+
     # Internal coroutines
-    # ------------------------------------------------------------------
+
 
     @staticmethod
     async def _dg_to_client(
@@ -126,10 +106,7 @@ class DeepgramStreamingService:
             except Exception:
                 pass
 
-    # ------------------------------------------------------------------
     # Message translation
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _translate(raw: str) -> Optional[str]:
         """Translate a Deepgram JSON message into the frontend envelope.
@@ -162,7 +139,6 @@ class DeepgramStreamingService:
                 "is_final": is_final,
             })
 
-        # --- Utterance end: flush any pending partial as final ---
         if msg_type == "UtteranceEnd":
             # The browser side will treat the next Results(is_final=True)
             # as the boundary; no extra message needed.
