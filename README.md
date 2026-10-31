@@ -1,179 +1,141 @@
-# ComfTalk — AI Speech & Accent Practice
+# ComfTalk
 
-A full-stack platform that helps learners improve spoken English through real-time AI coaching. Practice monologues with live transcription and instant feedback, or train your accent with phrase-reading drills scored against native pronunciation patterns.
+ComfTalk is a web app for practising spoken English. It combines free-form speaking practice with phrase-based pronunciation exercises.
 
 ## Features
 
-- **Monologue Studio** — Record up to 3-minute speaking sessions with live Deepgram streaming transcription, automatic pause/pacing detection, filler word tracking (`um`, `uh`, `you know`, etc.), and AI-generated coaching feedback.
-- **Accent Training** — Read phrases aloud and receive word-by-word scoring against American or British English using Deepgram confidence data and phoneme heuristic alignment (Needleman-Wunsch).
-- **Dashboard** — Browse session history, replay audio, view transcripts with `[pause]` annotations, and delete old recordings.
-- **User Accounts** — JWT-based authentication with registration, login, and profile management.
+- **Monologue practice:** Record a speaking session with live transcription, pause markers, filler-word counts, AI-generated topic prompts, and written coaching feedback.
+- **Accent practice:** Read a prompt aloud and review word-level feedback for American or British English. Feedback currently uses speech recognition results and pronunciation heuristics.
+- **Accounts and history:** Register, sign in, manage basic profile details, and review or delete saved practice sessions.
+- **Audio playback:** Replay saved monologue and accent-practice recordings.
 
-## Tech Stack
+## Technology
 
-| Layer | Technology |
-|---|---|
-| **Backend** | FastAPI · Python 3.11+ · SQLAlchemy 2.0 (async) · Alembic |
-| **Database** | Supabase PostgreSQL (transaction pooler, port 6543) |
-| **Speech-to-Text** | Deepgram nova-2 — streaming WebSocket + pre-recorded batch |
-| **LLM** | Google Gemini 2.5 Flash (production) · Ollama (local dev) |
-| **Audio Storage** | Supabase Storage (S3-compatible) · local disk fallback |
-| **Frontend** | Next.js 15 · React 19 · Tailwind CSS v4 · next-themes |
-| **Hosting** | Render (backend) · Vercel (frontend) |
+- **Frontend:** Next.js 15, React 19, TypeScript, and Tailwind CSS 4
+- **Backend:** FastAPI, Python, SQLAlchemy, and Alembic
+- **Database:** PostgreSQL
+- **Speech recognition:** Deepgram Nova-2 for streaming and recorded audio
+- **AI coaching:** Gemini by default; Ollama and OpenAI provider implementations are also available
+- **Audio storage:** Local disk or an S3-compatible service such as Supabase Storage
 
-## Project Structure
+## Requirements
 
-```
-.
-├── .env                    # Environment variables — never commit
-├── backend/
-│   ├── main.py             # FastAPI entrypoint, CORS, health check, LLM endpoints
-│   ├── database.py         # Async SQLAlchemy engine (Supabase SSL, PgBouncer compat)
-│   ├── models.py           # ORM models: User, Session, PracticeAttempt
-│   ├── schemas.py          # Pydantic request/response schemas
-│   ├── alembic/            # Database migrations
-│   ├── routers/
-│   │   ├── auth.py         # POST /login, GET /me
-│   │   ├── users.py        # Registration, login (JSON), profile CRUD
-│   │   ├── sessions.py     # Monologue session lifecycle, audio upload/playback
-│   │   ├── accent.py       # Accent training attempts, history, audio storage
-│   │   └── streaming.py    # WebSocket /ws/stream → Deepgram real-time proxy
-│   ├── services/
-│   │   ├── llm_service.py          # Gemini / Ollama / OpenAI abstraction layer
-│   │   ├── deepgram_service.py     # Batch transcription: DeepgramService + DeepgramAccentService
-│   │   ├── deepgram_streaming.py   # Real-time WebSocket proxy (DeepgramStreamingService)
-│   │   ├── audio_storage.py        # S3-compatible storage (AudioStorage) + local fallback
-│   │   ├── auth_service.py         # JWT creation/validation, password hashing (bcrypt)
-│   │   ├── session_manager.py      # Session lifecycle, audio archival, guest cleanup
-│   │   └── accent_engine.py        # Needleman-Wunsch alignment, phoneme heuristics
-│   └── tests/
-│       ├── test_llm_service.py     # LLM backend factory + Gemini mock tests
-│       ├── test_accent_engine.py   # Alignment and scoring tests
-│       ├── test_auth_unit.py       # JWT and password hashing tests
-│       └── test_filler_words.py    # Filler word counting tests
-└── frontend/
-    └── app/                # Next.js 15 App Router
-        ├── page.tsx                # Landing page
-        ├── monologue/page.tsx      # Monologue recording studio
-        ├── accent/page.tsx         # Accent training drills
-        ├── dashboard/              # Session history (monologue + accent)
-        ├── profile/page.tsx        # User profile
-        ├── register/page.tsx       # Registration page
-        ├── about/page.tsx          # About page
-        ├── components/             # Header, Footer, LoginModal, ThemeToggle
-        └── lib/api.ts              # API base URL config
-```
+- Python 3.11 or newer
+- Node.js 20 or newer
+- PostgreSQL database
+- Deepgram API key
+- Gemini API key
+- FFmpeg and FFprobe on the backend machine
 
-## Setup
+Optional: Ollama for local model use, or S3-compatible storage for persistent recordings in hosted environments.
 
-### Prerequisites
+## Local setup
 
-- Python 3.11+
-- Node.js 20+
-- A free [Supabase](https://supabase.com) project (database + optional storage)
-- [Deepgram](https://deepgram.com) API key (free \$200 credit on sign-up)
-- [Gemini](https://aistudio.google.com) API key **or** [Ollama](https://ollama.com) running locally
+Create a `.env` file in the repository root. Add the database connection and service credentials described under [Configuration](#configuration).
 
 ### Backend
 
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
-alembic upgrade head            # Run database migrations
-uvicorn main:app --reload       # Starts on http://localhost:8000
+alembic upgrade head
+uvicorn main:app --reload
 ```
 
-> **Note:** Tables are also auto-created on startup via `Base.metadata.create_all` if migrations haven't been run yet.
+The API runs at `http://localhost:8000`. On startup, the backend also attempts to create any missing tables; use Alembic migrations to manage schema changes.
 
 ### Frontend
+
+In a second terminal:
 
 ```bash
 cd frontend
 npm install
-npm run dev                     # Starts on http://localhost:3000
+npm run dev
 ```
 
-## Environment Variables
+The website runs at `http://localhost:3000`. To use a backend at a different address, set `NEXT_PUBLIC_API_BASE_URL` in the frontend environment.
 
-Create a `.env` file in the **project root** (next to `backend/` and `frontend/`):
+## Configuration
+
+The backend loads `.env` from the repository root.
+
+### Required
 
 ```env
-# ── Database (Supabase PostgreSQL) ──────────────────────────────
-DATABASE_URL=postgresql+asyncpg://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?sslmode=require
+DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@HOST:5432/DATABASE
+SECRET_KEY=replace-with-a-long-random-secret
+DEEPGRAM_API_KEY=your-deepgram-api-key
+LLM_BACKEND=gemini
+GEMINI_API_KEY=your-gemini-api-key
+```
 
-# ── Auth ────────────────────────────────────────────────────────
-SECRET_KEY=your-secret-key-here           # openssl rand -hex 32
+For Supabase PostgreSQL, use the connection string and SSL settings appropriate to your Supabase project. Keep credentials private and do not commit `.env`.
 
-# ── Deepgram (required — all transcription) ─────────────────────
-DEEPGRAM_API_KEY=your-deepgram-key
+### Optional
 
-# ── LLM Backend ────────────────────────────────────────────────
-LLM_BACKEND=gemini                        # "gemini" | "ollama" | "openai"
+```env
+# Gemini model (defaults to gemini-2.5-flash)
+GEMINI_MODEL=gemini-2.5-flash
 
-# Gemini (when LLM_BACKEND=gemini)
-GEMINI_API_KEY=your-gemini-key
-GEMINI_MODEL=gemini-2.5-flash             # optional, this is the default
-
-# Ollama (when LLM_BACKEND=ollama)
-OLLAMA_MODEL=gemma3:4b
+# Alternative AI providers
+# LLM_BACKEND=ollama
 OLLAMA_BASE_URL=http://localhost:11434/v1
+OLLAMA_MODEL=llama3.2:3b
+# LLM_BACKEND=openai
+OPENAI_API_KEY=your-openai-api-key
 
-# ── Supabase Storage (optional — falls back to local disk) ─────
-STORAGE_ENDPOINT_URL=https://[project-ref].storage.supabase.co/v1/s3
-STORAGE_ACCESS_KEY_ID=your-supabase-s3-access-key
-STORAGE_SECRET_ACCESS_KEY=your-supabase-s3-secret-key
+# S3-compatible audio storage, for example Supabase Storage
+STORAGE_ENDPOINT_URL=https://PROJECT.storage.supabase.co/v1/s3
+STORAGE_ACCESS_KEY_ID=your-storage-access-key
+STORAGE_SECRET_ACCESS_KEY=your-storage-secret-key
 STORAGE_BUCKET=recordings
 STORAGE_REGION=us-east-1
 
-# ── CORS (optional — localhost + *.vercel.app allowed by default)
-CORS_ORIGINS=https://yourcustomdomain.com
-FRONTEND_URL=https://ai-speech-accent-practice.vercel.app
+# Browser origins allowed to call the API
+CORS_ORIGINS=https://your-domain.example
+FRONTEND_URL=https://your-frontend.example
 ```
 
-### Variable Reference
+Without storage credentials, recordings use local disk. Hosted filesystems may be temporary, so configure persistent object storage when recordings need to survive restarts or deployments.
 
-| Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | **Yes** | Supabase PostgreSQL connection string. Use the **transaction pooler** (port `6543`) with `?sslmode=require`. The backend auto-strips `sslmode` for asyncpg and handles SSL internally. |
-| `SECRET_KEY` | **Yes** | JWT signing secret. Use a long random string (`openssl rand -hex 32`). |
-| `DEEPGRAM_API_KEY` | **Yes** | Required for all transcription — streaming and batch. |
-| `LLM_BACKEND` | **Yes** | `gemini` (production), `ollama` (local dev), or `openai` (legacy). |
-| `GEMINI_API_KEY` | When gemini | Required when `LLM_BACKEND=gemini`. |
-| `GEMINI_MODEL` | No | Gemini model name. Default: `gemini-2.5-flash`. |
-| `OLLAMA_BASE_URL` | No | Ollama API URL. Default: `http://localhost:11434/v1`. |
-| `OLLAMA_MODEL` | No | Ollama model name. Default: `llama3.2:3b`. |
-| `STORAGE_ENDPOINT_URL` | No | Supabase Storage S3 endpoint. Without this, audio saves to local disk (ephemeral on Render). |
-| `STORAGE_BUCKET` | No | Supabase Storage bucket name. |
-| `STORAGE_ACCESS_KEY_ID` | No | Supabase S3 access key (Project Settings → Storage → S3 Access Keys). |
-| `STORAGE_SECRET_ACCESS_KEY` | No | Supabase S3 secret key. |
-| `STORAGE_REGION` | No | Storage region. Default: `us-east-1`. |
-| `CORS_ORIGINS` | No | Comma-separated allowed origins for custom domains. |
-| `FRONTEND_URL` | No | Single additional allowed CORS origin. |
-| `DATABASE_SSL` | No | Force SSL on/off. Auto-detected from `?sslmode=require` in the URL. |
+The frontend's `NEXT_PUBLIC_API_BASE_URL` should point to the backend, for example:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
+
+## Project layout
+
+```text
+backend/
+  main.py             API application and coaching endpoints
+  routers/            Authentication, users, sessions, accent, streaming
+  services/           AI, transcription, audio storage, scoring, and auth logic
+  models.py           Database models
+  schemas.py          API request and response models
+  alembic/            Database migrations
+  tests/              Backend unit tests
+frontend/
+  app/                Pages, shared components, and browser workflows
+```
+
+## Tests
+
+Run backend tests from the `backend/` directory with the virtual environment active:
+
+```bash
+pytest
+```
+
+Run frontend linting from `frontend/`:
+
+```bash
+npm run lint
+```
 
 ## Deployment
 
-### Backend on Render
-
-1. Create a **Web Service** pointing to your repository.
-2. Set **Root Directory** to `backend`.
-3. Set **Build Command** to `pip install -r requirements.txt`.
-4. Set **Start Command** to `uvicorn main:app --host 0.0.0.0 --port $PORT`.
-5. Add all required environment variables in the **Environment** tab.
-
-> **Important:** Render's filesystem is ephemeral — audio files saved locally are lost on every deploy. Set up Supabase Storage variables to persist recordings.
-
-### Frontend on Vercel
-
-1. Import the repository and set **Root Directory** to `frontend`.
-2. Add `NEXT_PUBLIC_API_BASE_URL` environment variable pointing to your Render backend URL (e.g. `https://ai-speech-accent-practice.onrender.com`).
-
-## Running Tests
-
-```bash
-cd backend
-source venv/bin/activate
-pytest -v                       # 22 tests across 4 test modules
-```
+The frontend and backend can be deployed separately. Configure the frontend's `NEXT_PUBLIC_API_BASE_URL` with the deployed API address, and set backend environment variables on the backend host. Configure persistent object storage for recordings when the backend host does not retain local files between deployments.
