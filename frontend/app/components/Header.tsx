@@ -13,15 +13,24 @@ export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const profileRef = useRef<HTMLDivElement | null>(null);
+  const desktopGuideRef = useRef<HTMLDetailsElement | null>(null);
+  const mobileGuideRef = useRef<HTMLDetailsElement | null>(null);
 
   useEffect(() => {
     const dismiss = (event: PointerEvent) => {
       if (!profileRef.current?.contains(event.target as Node)) setIsProfileOpen(false);
+      for (const ref of [desktopGuideRef, mobileGuideRef]) {
+        if (ref.current && !ref.current.contains(event.target as Node)) {
+          ref.current.open = false;
+        }
+      }
     };
     const onEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsProfileOpen(false);
         setIsMenuOpen(false);
+        if (desktopGuideRef.current) desktopGuideRef.current.open = false;
+        if (mobileGuideRef.current) mobileGuideRef.current.open = false;
       }
     };
     document.addEventListener("pointerdown", dismiss);
@@ -80,7 +89,7 @@ export default function Header() {
         />
       </Link>
 
-      <nav className="hidden md:flex items-center space-x-6">
+      <nav className="hidden shrink-0 items-center space-x-6 whitespace-nowrap lg:flex">
         <Link
           href="/monologue"
           className={`flex items-center gap-2 font-medium transition pb-1 ${getActiveClass("/monologue")}`}
@@ -122,9 +131,11 @@ export default function Header() {
           <span>Accent Training</span>
         </Link>
 
-        <Link href="/about" className="flex items-center gap-2 font-medium transition pb-1">About ComfTalk</Link>
-        
-        <details className="group relative">
+        <Link href="/about" className={`flex items-center gap-2 font-medium transition pb-1 ${getActiveClass("/about")}`}>
+          About ComfTalk
+        </Link>
+
+        <details ref={desktopGuideRef} className="group relative">
           <summary className="flex cursor-pointer list-none items-center gap-1 pb-1 font-medium text-ui-text transition hover:text-ui-accent">
             How it works
             <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 transition group-open:rotate-180"><path fillRule="evenodd" d="M5.22 7.47a.75.75 0 0 1 1.06 0L10 11.19l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 8.53a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>
@@ -185,7 +196,7 @@ export default function Header() {
         )}
 
         <button
-          className="md:hidden p-2 rounded-lg hover:bg-brand-primary/10 transition"
+          className="lg:hidden p-2 rounded-lg hover:bg-brand-primary/10 transition"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           aria-label="Toggle Menu"
           aria-expanded={isMenuOpen}
@@ -209,7 +220,7 @@ export default function Header() {
 
       </div>
       {isMenuOpen && (
-        <div className="md:hidden">
+        <div className="lg:hidden">
           <button
             type="button"
             aria-label="Close navigation menu"
@@ -253,7 +264,7 @@ export default function Header() {
                 </Link>
               ))}
             </div>
-            <details className="mt-5 border-t border-ui-border pt-4">
+            <details ref={mobileGuideRef} className="mt-5 border-t border-ui-border pt-4">
               <summary className="cursor-pointer list-none px-4 py-2 font-semibold text-ui-text">How it works</summary>
               <div className="mt-1 flex flex-col gap-1 pl-3">
                 <Link href="/about/monologue" onClick={() => setIsMenuOpen(false)} className="rounded-lg px-4 py-2 text-sm text-ui-muted transition hover:bg-ui-surface-muted hover:text-ui-accent">Monologue guide</Link>
