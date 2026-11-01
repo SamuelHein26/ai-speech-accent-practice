@@ -11,16 +11,12 @@ export default function Footer() {
           >
             About
           </Link>
-          <button 
-            className="hover:text-ui-accent transition cursor-pointer"
-          >
+          <Link href="/privacy" className="hover:text-ui-accent transition">
             Privacy Policy
-          </button>
-          <button
-            className="hover:text-ui-accent transition cursor-pointer"
-          >
+          </Link>
+          <Link href="/terms" className="hover:text-ui-accent transition">
             Terms of Service
-          </button>
+          </Link>
         </div>
 
         <p className="text-xs text-ui-muted">
