@@ -5,7 +5,6 @@ export default function AccentGuidePage() {
     <main className="page-container">
       <article className="mx-auto max-w-3xl space-y-10">
         <header className="space-y-4">
-          <Link href="/about" className="text-sm font-medium text-ui-accent hover:underline">← About ComfTalk</Link>
           <p className="page-eyebrow">How it works</p>
           <h1 className="page-title">Accent Training</h1>
           <p className="text-lg leading-relaxed text-ui-muted">Practise a short phrase against an American or British English target and get feedback on how clearly each word was recognised.</p>
