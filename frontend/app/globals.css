@@ -53,6 +53,14 @@
   animation: fadeIn 0.25s ease-out;
 }
 
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.animate-slideInRight {
+  animation: slideInRight 0.2s ease-out;
+}
+
 body {
   background: var(--ui-page);
   color: var(--ui-text);
