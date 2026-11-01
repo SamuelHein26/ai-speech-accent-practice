@@ -122,9 +122,20 @@ export default function Header() {
           <span>Accent Training</span>
         </Link>
 
-        <Link href="/about" className={`${getActiveClass("/about")} font-medium transition pb-1`}>
-          About
-        </Link>
+        <Link href="/about" className="flex items-center gap-2 font-medium transition pb-1">About ComfTalk</Link>
+        
+        <details className="group relative">
+          <summary className="flex cursor-pointer list-none items-center gap-1 pb-1 font-medium text-ui-text transition hover:text-ui-accent">
+            How it works
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 transition group-open:rotate-180"><path fillRule="evenodd" d="M5.22 7.47a.75.75 0 0 1 1.06 0L10 11.19l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 8.53a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>
+          </summary>
+          <div className="absolute right-0 top-full z-50 mt-3 w-56 rounded-xl border border-ui-border bg-ui-surface p-2 shadow-xl">
+            <Link href="/about/monologue" className="block rounded-lg px-3 py-2 text-sm text-ui-text transition hover:bg-ui-surface-muted hover:text-ui-accent">Monologue guide</Link>
+            <Link href="/about/accent" className="block rounded-lg px-3 py-2 text-sm text-ui-text transition hover:bg-ui-surface-muted hover:text-ui-accent">Accent Training guide</Link>
+          </div>
+        </details>
+
+
       </nav>
 
       <div className="flex items-center space-x-4 relative" ref={profileRef}>
@@ -242,6 +253,13 @@ export default function Header() {
                 </Link>
               ))}
             </div>
+            <details className="mt-5 border-t border-ui-border pt-4">
+              <summary className="cursor-pointer list-none px-4 py-2 font-semibold text-ui-text">How it works</summary>
+              <div className="mt-1 flex flex-col gap-1 pl-3">
+                <Link href="/about/monologue" onClick={() => setIsMenuOpen(false)} className="rounded-lg px-4 py-2 text-sm text-ui-muted transition hover:bg-ui-surface-muted hover:text-ui-accent">Monologue guide</Link>
+                <Link href="/about/accent" onClick={() => setIsMenuOpen(false)} className="rounded-lg px-4 py-2 text-sm text-ui-muted transition hover:bg-ui-surface-muted hover:text-ui-accent">Accent Training guide</Link>
+              </div>
+            </details>
           </nav>
         </div>
       )}
