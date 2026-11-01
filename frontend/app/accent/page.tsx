@@ -208,7 +208,7 @@ export default function AccentPage() {
                   Swap accents anytime — your next attempt will score against the selected style.
                 </p>
               </div>
-              <div className="inline-flex rounded-full bg-ui-surface-muted p-1">
+              <div className="grid w-full grid-cols-2 rounded-full bg-ui-surface-muted p-1 sm:w-auto sm:shrink-0">
                 {(["american", "british"] as AccentOption[]).map((option) => {
                   const active = option === selectedAccent;
                   return (
@@ -216,7 +216,7 @@ export default function AccentPage() {
                       key={option}
                       type="button"
                       onClick={() => setSelectedAccent(option)}
-                      className={`px-4 py-2 text-sm font-medium rounded-full transition-colors cursor-pointer ${
+                      className={`px-3 py-2 text-center text-sm font-medium rounded-full transition-colors cursor-pointer sm:px-4 ${
                         active
                           ? "bg-brand-secondary text-ui-on-brand shadow"
                           : "text-ui-muted hover:bg-ui-surface-muted"

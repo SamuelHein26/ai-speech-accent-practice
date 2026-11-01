@@ -10,10 +10,10 @@
   --ui-muted: #6d6d72;
   --ui-border: #e1dfdf;
   --ui-border-strong: #c5c3c3;
-  --ui-accent: #bd3c42;
+  --ui-accent: #fb6b6b;
   --ui-on-brand: #ffffff;
   --brand-primary: #fb6b6b;
-  --brand-secondary: #bd3c42;
+  --brand-secondary: #fb6b6b;
   --font-geist-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
@@ -75,7 +75,7 @@ body {
     @apply text-3xl font-semibold tracking-tight text-ui-text sm:text-4xl;
   }
   .page-eyebrow {
-    @apply text-xs font-semibold uppercase tracking-widest text-ui-accent;
+    @apply text-sm font-semibold uppercase tracking-widest text-ui-accent;
   }
   .form-label {
     @apply block text-sm font-medium text-ui-text;
