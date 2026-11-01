@@ -60,7 +60,7 @@ export default function Header() {
 
   return (
     <header className="relative z-40 w-full border-b border-ui-border bg-ui-surface transition-colors">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
       <Link href="/" aria-label="ComfTalk home" onClick={() => setIsMenuOpen(false)} className="shrink-0">
         <Image
           src="/Logo_light.png"
@@ -198,25 +198,51 @@ export default function Header() {
 
       </div>
       {isMenuOpen && (
-        <div className="absolute top-full left-0 w-full border-b border-ui-border bg-ui-surface shadow-md flex flex-col items-center space-y-4 py-6 md:hidden z-50">
-          {["/monologue", "/accent", "/about"].map((path) => (
-            <Link
-              key={path}
-              href={path}
-              onClick={() => setIsMenuOpen(false)}
-              className={`text-lg font-medium ${
-                pathname === path
-                  ? "text-ui-accent underline underline-offset-4"
-                  : "text-ui-text hover:text-ui-accent"
-              } transition`}
-            >
-              {path === "/monologue"
-                ? "Monologue"
-                : path === "/accent"
-                ? "Accent Training"
-                : "About"}
-            </Link>
-          ))}
+        <div className="md:hidden">
+          <button
+            type="button"
+            aria-label="Close navigation menu"
+            onClick={() => setIsMenuOpen(false)}
+            className="fixed inset-0 z-50 bg-black/40"
+          />
+          <nav
+            aria-label="Mobile navigation"
+            className="fixed inset-y-0 right-0 z-[60] flex w-80 max-w-[85vw] flex-col border-l border-ui-border bg-ui-surface p-6 shadow-2xl animate-slideInRight"
+          >
+            <div className="mb-8 flex items-center justify-between">
+              <span className="text-lg font-semibold text-ui-text">Menu</span>
+              <button
+                type="button"
+                aria-label="Close navigation menu"
+                onClick={() => setIsMenuOpen(false)}
+                className="rounded-lg p-2 text-ui-text transition hover:bg-ui-surface-muted"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-6 w-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {["/monologue", "/accent", "/about"].map((path) => (
+                <Link
+                  key={path}
+                  href={path}
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`rounded-xl px-4 py-3 text-base font-medium transition ${
+                    pathname === path
+                      ? "bg-brand-primary/10 text-ui-accent"
+                      : "text-ui-text hover:bg-ui-surface-muted hover:text-ui-accent"
+                  }`}
+                >
+                  {path === "/monologue"
+                    ? "Monologue"
+                    : path === "/accent"
+                    ? "Accent Training"
+                    : "About"}
+                </Link>
+              ))}
+            </div>
+          </nav>
         </div>
       )}
 
