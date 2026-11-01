@@ -1,12 +1,12 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import LoginModal from "../components/loginModal";
+import { loginHref } from "../lib/auth";
 import ThemeToggle from "./ThemeToggle";
 import { useRouter, usePathname } from "next/navigation";
 
 export default function Header() {
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -15,8 +15,21 @@ export default function Header() {
   const profileRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    setIsLoggedIn(!!token);
+    const dismiss = (event: PointerEvent) => {
+      if (!profileRef.current?.contains(event.target as Node)) setIsProfileOpen(false);
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsProfileOpen(false);
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", onEscape);
+    };
   }, []);
 
   useEffect(() => {
@@ -24,7 +37,13 @@ export default function Header() {
     checkToken();
 
     window.addEventListener("authChange", checkToken);
-    return () => window.removeEventListener("authChange", checkToken);
+    window.addEventListener("storage", checkToken);
+    window.addEventListener("focus", checkToken);
+    return () => {
+      window.removeEventListener("authChange", checkToken);
+      window.removeEventListener("storage", checkToken);
+      window.removeEventListener("focus", checkToken);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -36,14 +55,30 @@ export default function Header() {
 
   const getActiveClass = (path: string): string =>
     pathname === path
-      ? "text-red-400 border-b-2 border-red-400"
-      : "text-gray-700 dark:text-gray-300 hover:text-red-400";
+      ? "text-ui-accent border-b-2 border-brand-secondary"
+      : "text-ui-text hover:text-ui-accent";
 
   return (
-    <header className="w-full flex justify-between items-center px-8 py-4 shadow bg-white dark:bg-gray-900 transition-colors relative border-b border-gray-100 dark:border-gray-800">
-      <h1 className="font-bold text-xl text-red-400">
-        <Link href="/">ComfTalk</Link>
-      </h1>
+    <header className="relative z-40 w-full border-b border-ui-border bg-ui-surface transition-colors">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+      <Link href="/" aria-label="ComfTalk home" onClick={() => setIsMenuOpen(false)} className="shrink-0">
+        <Image
+          src="/Logo_light.png"
+          alt="ComfTalk"
+          width={860}
+          height={270}
+          priority
+          className="h-auto w-28 sm:w-32 dark:hidden"
+        />
+        <Image
+          src="/Logo_dark.png"
+          alt="ComfTalk"
+          width={860}
+          height={270}
+          priority
+          className="hidden h-auto w-28 sm:w-32 dark:block"
+        />
+      </Link>
 
       <nav className="hidden md:flex items-center space-x-6">
         <Link
@@ -99,28 +134,29 @@ export default function Header() {
           <div className="relative">
             <button
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="focus:outline-none bg-red-600 hover:bg-red-700 text-white font-medium rounded-full px-4 py-2.5 text-sm transition cursor-pointer"
+              aria-expanded={isProfileOpen}
+              className="focus:outline-none bg-brand-secondary hover:bg-brand-secondary/90 text-ui-on-brand font-medium rounded-full px-4 py-2.5 text-sm transition cursor-pointer"
             >
               Profile
             </button>
 
             {isProfileOpen && (
-              <div className="absolute right-0 mt-2 w-36 bg-white dark:bg-gray-800 shadow-lg rounded-lg z-50">
+              <div className="absolute right-0 mt-2 w-36 bg-ui-surface shadow-lg rounded-lg z-50">
                 <button
-                  onClick={() => router.push("/profile")}
-                  className="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-red-50 dark:hover:bg-gray-700 transition"
+                  onClick={() => { setIsProfileOpen(false); router.push("/profile"); }}
+                  className="block w-full text-left px-4 py-2 text-ui-text hover:bg-brand-primary/10 transition"
                 >
                   View Profile
                 </button>
                 <button
-                  onClick={() => router.push("/dashboard")}
-                  className="block w-full text-left px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-red-50 dark:hover:bg-gray-700 transition"
+                  onClick={() => { setIsProfileOpen(false); router.push("/dashboard"); }}
+                  className="block w-full text-left px-4 py-2 text-ui-text hover:bg-brand-primary/10 transition"
                 >
                   Dashboard
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="block w-full text-left px-4 py-2 text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 transition"
+                  className="block w-full text-left px-4 py-2 text-ui-accent hover:bg-brand-primary/10 transition"
                 >
                   Logout
                 </button>
@@ -128,18 +164,20 @@ export default function Header() {
             )}
           </div>
         ) : (
-          <button
-            onClick={() => setIsLoginOpen(true)}
-            className="focus:outline-none text-white bg-red-600 hover:bg-red-700 font-medium rounded-lg text-sm px-5 py-2.5 cursor-pointer transition"
+          <Link
+            href={loginHref(pathname === "/" ? "/dashboard" : pathname)}
+            onClick={() => setIsMenuOpen(false)}
+            className="button-primary whitespace-nowrap"
           >
-            Login
-          </button>
+            Log in
+          </Link>
         )}
 
         <button
-          className="md:hidden p-2 rounded-lg hover:bg-red-50 dark:hover:bg-gray-800 transition"
+          className="md:hidden p-2 rounded-lg hover:bg-brand-primary/10 transition"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           aria-label="Toggle Menu"
+          aria-expanded={isMenuOpen}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -147,7 +185,7 @@ export default function Header() {
             viewBox="0 0 24 24"
             strokeWidth={2}
             stroke="currentColor"
-            className="h-6 w-6 text-red-400"
+            className="h-6 w-6 text-ui-accent"
           >
             {isMenuOpen ? (
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -158,8 +196,9 @@ export default function Header() {
         </button>
       </div>
 
+      </div>
       {isMenuOpen && (
-        <div className="absolute top-16 left-0 w-full bg-white dark:bg-gray-900 shadow-md flex flex-col items-center space-y-4 py-6 md:hidden z-50">
+        <div className="absolute top-full left-0 w-full border-b border-ui-border bg-ui-surface shadow-md flex flex-col items-center space-y-4 py-6 md:hidden z-50">
           {["/monologue", "/accent", "/about"].map((path) => (
             <Link
               key={path}
@@ -167,8 +206,8 @@ export default function Header() {
               onClick={() => setIsMenuOpen(false)}
               className={`text-lg font-medium ${
                 pathname === path
-                  ? "text-red-400 underline underline-offset-4"
-                  : "text-gray-700 dark:text-gray-300 hover:text-red-400"
+                  ? "text-ui-accent underline underline-offset-4"
+                  : "text-ui-text hover:text-ui-accent"
               } transition`}
             >
               {path === "/monologue"
@@ -181,7 +220,6 @@ export default function Header() {
         </div>
       )}
 
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
     </header>
   );
 }

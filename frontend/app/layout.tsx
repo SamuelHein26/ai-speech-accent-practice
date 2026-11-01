@@ -1,4 +1,5 @@
 import Footer from "./components/Footer";
+import Header from "./components/Header";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 
@@ -16,12 +17,13 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning className="overflow no-scrollbar">
       <body 
         suppressHydrationWarning 
-        className="font-sans antialiased bg-gray-50 text-black dark:bg-gray-800 dark:text-white"
+        className="flex min-h-screen flex-col font-sans antialiased bg-ui-page text-ui-text"
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem={true}>
-          {children}
+          <Header />
+          <div className="flex-1">{children}</div>
+          <Footer />
         </ThemeProvider>
-        <Footer/>
       </body>
     </html>
   );

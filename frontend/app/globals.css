@@ -3,24 +3,46 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ui-page: #faf9f9;
+  --ui-surface: #ffffff;
+  --ui-surface-muted: #f1f0f0;
+  --ui-text: #1c1c1e;
+  --ui-muted: #6d6d72;
+  --ui-border: #e1dfdf;
+  --ui-border-strong: #c5c3c3;
+  --ui-accent: #bd3c42;
+  --ui-on-brand: #ffffff;
+  --brand-primary: #fb6b6b;
+  --brand-secondary: #bd3c42;
   --font-geist-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-ui-page: var(--ui-page);
+  --color-ui-surface: var(--ui-surface);
+  --color-ui-surface-muted: var(--ui-surface-muted);
+  --color-ui-text: var(--ui-text);
+  --color-ui-muted: var(--ui-muted);
+  --color-ui-border: var(--ui-border);
+  --color-ui-border-strong: var(--ui-border-strong);
+  --color-ui-accent: var(--ui-accent);
+  --color-ui-on-brand: var(--ui-on-brand);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-secondary: var(--brand-secondary);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.dark {
+  --ui-page: #1c1c1e;
+  --ui-surface: #29292d;
+  --ui-surface-muted: #3e3e43;
+  --ui-text: #f1f0f0;
+  --ui-muted: #c5c3c3;
+  --ui-border: #3e3e43;
+  --ui-border-strong: #55555a;
+  --ui-accent: #fb6b6b;
 }
 
 @keyframes fadeIn {
@@ -32,7 +54,28 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--ui-page);
+  color: var(--ui-text);
+  font-family: var(--font-geist-sans);
+}
+
+@layer components {
+  .page-container {
+    @apply mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8;
+  }
+  .page-title {
+    @apply text-3xl font-semibold tracking-tight text-ui-text sm:text-4xl;
+  }
+  .page-eyebrow {
+    @apply text-xs font-semibold uppercase tracking-widest text-ui-accent;
+  }
+  .form-label {
+    @apply block text-sm font-medium text-ui-text;
+  }
+  .form-input {
+    @apply block w-full min-w-0 rounded-xl border border-ui-border-strong bg-ui-surface px-4 py-3 text-ui-text transition placeholder:text-ui-muted focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/25 disabled:opacity-60;
+  }
+  .button-primary {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-xl bg-brand-secondary px-5 py-3 text-sm font-semibold text-ui-on-brand transition hover:bg-brand-secondary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary disabled:cursor-not-allowed disabled:opacity-60;
+  }
 }

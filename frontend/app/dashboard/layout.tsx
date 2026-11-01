@@ -1,9 +1,9 @@
 "use client";
 
-import Header from "../components/Header";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import AuthGuard from "../components/AuthGuard";
 
 const tabs = [
   { href: "/dashboard/monologue", label: "Monologue" },
@@ -14,12 +14,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-800 transition-colors">
-      <Header />
-      <main className="px-4 py-12 flex justify-center">
-        <div className="w-full max-w-5xl space-y-8">
+    <AuthGuard>
+    <div className="bg-ui-page transition-colors">
+      <main className="page-container">
+        <div className="space-y-8">
           <nav className="flex justify-center">
-            <div className="inline-flex rounded-full bg-white/70 backdrop-blur px-1 py-1 shadow dark:bg-gray-900/70 dark:border dark:border-gray-700">
+            <div className="inline-flex rounded-full border border-ui-border bg-ui-surface p-1 shadow-sm">
               {tabs.map((tab) => {
                 const isActive = pathname === tab.href || pathname?.startsWith(`${tab.href}/`);
                 return (
@@ -28,8 +28,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     href={tab.href}
                     className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${
                       isActive
-                        ? "bg-red-600 text-white shadow"
-                        : "text-gray-600 hover:text-red-400 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                        ? "bg-brand-secondary text-ui-on-brand shadow"
+                        : "text-ui-muted hover:text-ui-accent hover:bg-ui-surface-muted"
                     }`}
                   >
                     {tab.label}
@@ -43,5 +43,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
       </main>
     </div>
+    </AuthGuard>
   );
 }

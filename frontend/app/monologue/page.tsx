@@ -1,6 +1,5 @@
 "use client";
 
-import Header from "../components/Header";
 import {
   Fragment,
   useCallback,
@@ -106,7 +105,7 @@ const highlightFillerWords = (text: string): ReactNode[] => {
     nodes.push(
       <mark
         key={`filler-${key++}`}
-        className="rounded bg-yellow-200 px-1 text-gray-900 dark:bg-yellow-500/60 dark:text-gray-900"
+        className="rounded bg-yellow-200 px-1 text-ui-text dark:bg-yellow-500/60"
       >
         {matched}
       </mark>
@@ -835,25 +834,25 @@ export default function MonologuePage() {
   }, [applyAudioUrl, clearRecordingTimer, displayText, requestFeedback]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-800 transition-colors">
-      <Header />
+    <div className="w-full flex flex-col bg-ui-page transition-colors">
 
       {!mounted ? (
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-gray-600 dark:text-gray-300">
+          <p className="text-ui-muted">
             Loading...
           </p>
         </div>
       ) : (
-        <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col">
+        <main className="page-container flex flex-col">
           {!isRecording && (
             <section className="text-center mb-10">
-              <h2 className="text-4xl font-bold mb-4 text-gray-900 dark:text-gray-100">
+              <p className="page-eyebrow mb-3">Speaking practice</p>
+              <h1 className="page-title mb-4">
                 Monologue Mode
-              </h2>
-              <p className="mx-auto max-w-2xl text-gray-700 dark:text-gray-300 text-lg leading-relaxed">
+              </h1>
+              <p className="mx-auto max-w-2xl text-ui-text text-lg leading-relaxed">
                 Practice your speaking fluency for up to{" "}
-                <span className="font-semibold text-red-400">
+                <span className="font-semibold text-ui-accent">
                   3 minutes
                 </span>
                 . If you pause for too long, you’ll
@@ -871,7 +870,7 @@ export default function MonologuePage() {
                   <button
                     onClick={startRecording}
                     aria-label="Start recording"
-                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-md flex items-center justify-center cursor-pointer transition"
+                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-brand-secondary hover:bg-brand-secondary/90 text-ui-on-brand shadow-md flex items-center justify-center cursor-pointer transition"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -888,7 +887,7 @@ export default function MonologuePage() {
                       />
                     </svg>
                   </button>
-                  <p className="mt-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <p className="mt-4 text-sm font-semibold text-ui-text">
                     Click to Start Recording
                   </p>
                 </div>
@@ -897,11 +896,11 @@ export default function MonologuePage() {
                   <button
                     onClick={stopRecording}
                     aria-label="Stop recording"
-                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-md flex items-center justify-center cursor-pointer transition"
+                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-brand-secondary hover:bg-brand-secondary/90 text-ui-on-brand shadow-md flex items-center justify-center cursor-pointer transition"
                   >
-                    <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-md bg-white" />
+                    <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-md bg-ui-surface" />
                   </button>
-                  <p className="mt-4 text-sm font-semibold text-red-400">
+                  <p className="mt-4 text-sm font-semibold text-ui-accent">
                     Recording in progress • Click to Stop
                   </p>
                 </div>
@@ -910,10 +909,10 @@ export default function MonologuePage() {
                   <button
                     disabled
                     aria-label="Processing audio"
-                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-gray-400 text-white shadow-md flex items-center justify-center cursor-not-allowed transition"
+                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-ui-surface-muted text-ui-muted shadow-md flex items-center justify-center cursor-not-allowed transition"
                   >
                     <svg
-                      className="animate-spin h-10 w-10 text-white"
+                      className="animate-spin h-10 w-10 text-ui-muted"
                       xmlns="http://www.w3.org/2000/svg"
                       fill="none"
                       viewBox="0 0 24 24"
@@ -933,7 +932,7 @@ export default function MonologuePage() {
                       />
                     </svg>
                   </button>
-                  <p className="mt-4 text-sm font-medium text-gray-500 dark:text-gray-400">
+                  <p className="mt-4 text-sm font-medium text-ui-muted">
                     Processing your monologue...
                   </p>
                 </div>
@@ -941,13 +940,13 @@ export default function MonologuePage() {
             </div>
 
             {(isRecording || clampedElapsed > 0 || timeLimitReached) && (
-              <div className="flex flex-col items-center gap-1 text-sm text-gray-600 dark:text-gray-300 mb-4">
+              <div className="flex flex-col items-center gap-1 text-sm text-ui-muted mb-4">
                 <span className="text-xs uppercase tracking-widest">Recording timer</span>
                 <span
                   className={`font-mono text-3xl font-semibold ${
                     isNearLimit
-                      ? "text-red-400"
-                      : "text-gray-900 dark:text-gray-100"
+                      ? "text-ui-accent"
+                      : "text-ui-text"
                   }`}
                 >
                   {formattedElapsed}
@@ -956,14 +955,14 @@ export default function MonologuePage() {
                   <span
                     className={`text-xs ${
                       isNearLimit
-                        ? "text-red-400"
-                        : "text-gray-500 dark:text-gray-400"
+                        ? "text-ui-accent"
+                        : "text-ui-muted"
                     }`}
                   >
                     Time left: {formattedRemaining}
                   </span>
                 ) : (
-                  <span className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                  <span className="text-xs text-ui-muted text-center">
                     {timeLimitReached
                       ? "Maximum duration reached — we saved your take automatically."
                       : `Maximum duration: ${formatClock(MAX_RECORDING_SECONDS)}`}
@@ -984,25 +983,25 @@ export default function MonologuePage() {
           {showInteractivePanels && (
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full mb-10">
               {/* --- Live Transcript panel (col 1) --- */}
-              <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-3xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="bg-ui-surface text-ui-text rounded-3xl shadow-lg p-6 border border-ui-border">
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="text-lg font-semibold">
                     Live Transcript
                   </h3>
                   {isRecording && (
-                    <span className="text-xs font-medium text-red-400 bg-red-50 dark:bg-red-950/40 px-2 py-1 rounded-full border border-red-200/40 dark:border-red-800/40">
+                    <span className="text-xs font-medium text-ui-accent bg-brand-primary/10 dark:bg-brand-secondary/20 px-2 py-1 rounded-full border border-brand-primary/30 dark:border-brand-secondary/20">
                       Recording…
                     </span>
                   )}
                 </div>
 
-                <p className="min-h-[140px] whitespace-pre-wrap text-gray-700 dark:text-gray-300 leading-relaxed text-base">
+                <p className="min-h-[140px] whitespace-pre-wrap text-ui-text leading-relaxed text-base">
                   {displayText ||
                     "Listening... start speaking."}
                 </p>
               </div>
 
-              <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-3xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="bg-ui-surface text-ui-text rounded-3xl shadow-lg p-6 border border-ui-border">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="text-lg font-semibold">
                     Topic Suggestions
@@ -1019,7 +1018,7 @@ export default function MonologuePage() {
                       !isRecording ||
                       isFetchingSuggestions
                     }
-                    className="px-4 py-2 rounded-full text-sm font-medium bg-red-600 text-white shadow hover:bg-red-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 rounded-full text-sm font-medium bg-brand-secondary text-ui-on-brand shadow hover:bg-brand-secondary/90 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isFetchingSuggestions
                       ? "Generating..."
@@ -1027,7 +1026,7 @@ export default function MonologuePage() {
                   </button>
                 </div>
 
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                <p className="mt-2 text-sm text-ui-muted">
                   We&apos;ll surface prompts
                   automatically after about{" "}
                   {suggestionLeadSeconds} seconds of
@@ -1035,7 +1034,7 @@ export default function MonologuePage() {
                 </p>
 
                 {isFetchingSuggestions && (
-                  <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                  <p className="mt-4 text-sm text-ui-muted">
                     Listening to your last
                     thoughts and preparing fresh
                     prompts...
@@ -1043,7 +1042,7 @@ export default function MonologuePage() {
                 )}
 
                 {suggestionError && (
-                  <p className="mt-4 text-sm text-red-400">
+                  <p className="mt-4 text-sm text-ui-accent">
                     {suggestionError}
                   </p>
                 )}
@@ -1051,7 +1050,7 @@ export default function MonologuePage() {
                 {!isFetchingSuggestions &&
                   !suggestionError &&
                   suggestions.length === 0 && (
-                    <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                    <p className="mt-4 text-sm text-ui-muted">
                       Keep the monologue flowing.
                       Pause too long and
                       we&apos;ll jump in with
@@ -1067,12 +1066,12 @@ export default function MonologuePage() {
                       (topic, index) => (
                         <li
                           key={`${topic}-${index}`}
-                          className="flex items-start gap-3 rounded-2xl bg-gray-50 dark:bg-gray-800/80 px-4 py-3 shadow-sm border border-gray-200 dark:border-gray-700"
+                          className="flex items-start gap-3 rounded-2xl bg-ui-surface/80 px-4 py-3 shadow-sm border border-ui-border"
                         >
-                          <span className="mt-0.5 text-sm font-semibold text-red-400">
+                          <span className="mt-0.5 text-sm font-semibold text-ui-accent">
                             {index + 1}.
                           </span>
-                          <span className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                          <span className="text-sm text-ui-text leading-relaxed">
                             {topic}
                           </span>
                         </li>
@@ -1084,7 +1083,7 @@ export default function MonologuePage() {
                 {lastSuggestionSource ===
                   "auto" &&
                   suggestions.length > 0 && (
-                    <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mt-3 text-xs text-ui-muted">
                       We noticed a pause and added
                       these prompts to help you keep
                       going.
@@ -1094,7 +1093,7 @@ export default function MonologuePage() {
                 {lastSuggestionSource ===
                   "manual" &&
                   suggestions.length > 0 && (
-                    <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mt-3 text-xs text-ui-muted">
                       Need something new? Feel free
                       to refresh ideas whenever you
                       like.
@@ -1105,7 +1104,7 @@ export default function MonologuePage() {
           )}
 
           {error && (
-            <section className="bg-red-50 dark:bg-red-950/40 text-red-400 p-4 rounded-2xl shadow mb-8 border border-red-200 dark:border-red-900/60">
+            <section className="bg-brand-primary/10 dark:bg-brand-secondary/20 text-ui-accent p-4 rounded-2xl shadow mb-8 border border-brand-primary/30 dark:border-brand-secondary/20">
               <p className="font-semibold">
                 Error:
               </p>
@@ -1116,46 +1115,46 @@ export default function MonologuePage() {
           )}
 
           {finalTranscript && (
-            <section className="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-3xl shadow-lg p-6 sm:p-8 mb-8 border border-gray-200 dark:border-gray-700">
+            <section className="w-full bg-ui-surface text-ui-text rounded-3xl shadow-lg p-6 sm:p-8 mb-8 border border-ui-border">
               <h3 className="text-lg font-semibold mb-2">
                 Final Transcript
               </h3>
               {fillerWordCount !== null && (
-                <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-                  Filler words detected: <span className="font-semibold text-red-400">{fillerWordCount}</span>
+                <p className="text-sm text-ui-text mb-3">
+                  Filler words detected: <span className="font-semibold text-ui-accent">{fillerWordCount}</span>
                 </p>
               )}
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-ui-text">
                 {highlightFillerWords(finalTranscript)}
               </p>
             </section>
           )}
 
           {(isFetchingFeedback || feedback || feedbackError) && (
-            <section className="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-3xl shadow-lg p-6 sm:p-8 border border-gray-200 dark:border-gray-700 mb-8">
+            <section className="w-full bg-ui-surface text-ui-text rounded-3xl shadow-lg p-6 sm:p-8 border border-ui-border mb-8">
               <div className="flex items-center justify-between gap-3 mb-2">
                 <h3 className="text-lg font-semibold">AI Feedback</h3>
                 {isFetchingFeedback && (
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  <span className="text-xs font-medium text-ui-muted">
                     Generating...
                   </span>
                 )}
               </div>
 
               {feedbackError && (
-                <p className="text-sm text-red-400 mb-3">
+                <p className="text-sm text-ui-accent mb-3">
                   {feedbackError}
                 </p>
               )}
 
               {feedback && (
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ui-text">
                   {feedback}
                 </p>
               )}
 
               {!feedback && !feedbackError && (
-                <p className="text-sm text-gray-600 dark:text-gray-300">
+                <p className="text-sm text-ui-muted">
                   Gathering personalized insights from your session...
                 </p>
               )}
@@ -1163,7 +1162,7 @@ export default function MonologuePage() {
           )}
 
           {audioUrl && (
-            <section className="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-3xl shadow-lg p-6 sm:p-8 border border-gray-200 dark:border-gray-700">
+            <section className="w-full bg-ui-surface text-ui-text rounded-3xl shadow-lg p-6 sm:p-8 border border-ui-border">
               <h3 className="text-lg font-semibold mb-2">
                 Playback
               </h3>

@@ -1,8 +1,4 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL as string;
-
-if (!API_BASE) {
-
-}
+export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 
 type FetchOptions = Omit<RequestInit, "body"> & { body?: BodyInit | null };
 

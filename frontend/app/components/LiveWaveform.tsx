@@ -46,6 +46,9 @@ export default function LiveWaveform({ isRecording }: { isRecording: boolean }) 
         if (!canvas) return;
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
+        const brandColors = getComputedStyle(document.documentElement);
+        const coral = brandColors.getPropertyValue("--brand-primary").trim() || "#fb6b6b";
+        const coralDeep = brandColors.getPropertyValue("--brand-secondary").trim() || "#bd3c42";
 
         const draw = () => {
           if (isCancelled) return;
@@ -57,15 +60,12 @@ export default function LiveWaveform({ isRecording }: { isRecording: boolean }) 
           const midY = height / 2;
           ctx.clearRect(0, 0, width, height);
 
-          const isDark = document.documentElement.classList.contains("dark");
-          const backgroundColor = isDark ? "#1f2937" : "#f8fafc";
-
-          ctx.fillStyle = backgroundColor;
+          ctx.fillStyle = brandColors.getPropertyValue("--ui-surface-muted").trim();
           ctx.fillRect(0, 0, width, height);
           const gradient = ctx.createLinearGradient(0, 0, width, 0);
-          gradient.addColorStop(0, "#a855f7"); 
-          gradient.addColorStop(0.5, "#ef4444");
-          gradient.addColorStop(1, "#a855f7"); 
+          gradient.addColorStop(0, coralDeep);
+          gradient.addColorStop(0.5, coral);
+          gradient.addColorStop(1, coralDeep);
           ctx.fillStyle = gradient;
 
           const barCount = 60;

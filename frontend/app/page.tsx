@@ -1,44 +1,40 @@
 "use client";
-import { useState } from "react";
 import Link from "next/link";
-import Header from "./components/Header"
-import LoginModal from "./components/loginModal";
 
 export default function Home() {
-  const [showLogin, setShowLogin] = useState(false);
 
 
   return (
-    <main className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 transition-colors">
-      <Header/>
+    <main className="page-container text-ui-text">
       {/* Hero Section */}
-      <section className="flex flex-col items-center justify-center text-center py-20 px-6">
-        <h2 className="text-4xl font-bold text-gray-800 dark:text-gray-200">
-          Improve Your English Fluency & Accent with AI
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400 max-w-2xl">
-          Choose your training mode below to start practicing and get real-time
-          feedback powered by AI.
+      <section className="flex flex-col items-center text-center pb-10 pt-4 sm:pb-14 sm:pt-8">
+        <p className="page-eyebrow mb-4">A space to find your voice</p>
+        <h1 className="max-w-3xl text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
+          Speak a little more.<br /><span className="text-ui-accent dark:text-brand-primary">Feel a little more confident.</span>
+        </h1>
+        <p className="mt-5 max-w-xl leading-relaxed text-ui-muted">
+          Practise at your own pace with live transcription and thoughtful feedback. Choose a mode and make time for your voice.
         </p>
+        <span className="mt-5 rounded-full border border-ui-border bg-ui-surface px-4 py-2 text-xs font-medium text-ui-muted">Try either mode without an account</span>
       </section>
 
       {/* Options Section */}
-      <section className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <section className="w-full pb-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* ================= Monologue Mode Tile ================= */}
           <Link
             href="/monologue"
-            className="group flex flex-col items-center justify-center p-8 sm:p-10 rounded-3xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-red-400/60 dark:hover:border-red-400/60 hover:shadow-xl transition-all duration-300 cursor-pointer"
+            className="group flex flex-col items-center justify-center p-8 sm:p-10 rounded-3xl border border-ui-border bg-ui-surface hover:border-brand-primary/60 dark:hover:border-brand-primary/60 hover:shadow-xl transition-all duration-300 cursor-pointer"
           >
             {/* Tile Icon */}
-            <div className="mb-6 flex items-center justify-center w-20 h-20 rounded-full bg-red-50 dark:bg-red-950/40">
+            <div className="mb-6 flex items-center justify-center w-20 h-20 rounded-full bg-brand-primary/10 dark:bg-brand-secondary/20">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={1.8}
                 stroke="currentColor"
-                className="h-10 w-10 text-red-400"
+                className="h-10 w-10 text-ui-accent"
               >
                 <path
                   strokeLinecap="round"
@@ -49,30 +45,30 @@ export default function Home() {
             </div>
 
             {/* Tile Title */}
-            <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4 group-hover:text-red-400 transition-colors">
+            <h3 className="text-2xl sm:text-3xl font-bold text-ui-text mb-4 group-hover:text-ui-accent transition-colors">
               Monologue Mode
             </h3>
 
             {/* Tile Description */}
-            <p className="text-base sm:text-lg text-gray-600 dark:text-gray-300 text-center max-w-md leading-relaxed">
-              Speak freely for <span className="font-semibold text-red-400">3 minutes</span>. The AI monitors your flow and suggests fresh topics to keep your practice continuous.
+            <p className="text-base sm:text-lg text-ui-muted text-center max-w-md leading-relaxed">
+              Speak freely for <span className="font-semibold text-ui-accent">3 minutes</span>. The AI monitors your flow and suggests fresh topics to keep your practice continuous.
             </p>
           </Link>
 
           {/* ================= Accent Training Tile ================= */}
           <Link
             href="/accent"
-            className="group flex flex-col items-center justify-center p-8 sm:p-10 rounded-3xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-red-400/60 dark:hover:border-red-400/60 hover:shadow-xl transition-all duration-300 cursor-pointer"
+            className="group flex flex-col items-center justify-center p-8 sm:p-10 rounded-3xl border border-ui-border bg-ui-surface hover:border-brand-primary/60 dark:hover:border-brand-primary/60 hover:shadow-xl transition-all duration-300 cursor-pointer"
           >
             {/* Tile Icon */}
-            <div className="mb-6 flex items-center justify-center w-20 h-20 rounded-full bg-red-50 dark:bg-red-950/40">
+            <div className="mb-6 flex items-center justify-center w-20 h-20 rounded-full bg-brand-primary/10 dark:bg-brand-secondary/20">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 87.459 87.459"
                 fill="currentColor"
                 stroke="currentColor"
                 strokeWidth="0.8"
-                className="h-10 w-10 text-red-400"
+                className="h-10 w-10 text-ui-accent"
                 role="img"
                 aria-label="Person Speaking Icon"
               >
@@ -84,18 +80,17 @@ export default function Home() {
             </div>
 
             {/* Tile Title */}
-            <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4 group-hover:text-red-400 transition-colors">
+            <h3 className="text-2xl sm:text-3xl font-bold text-ui-text mb-4 group-hover:text-ui-accent transition-colors">
               Accent Training
             </h3>
 
             {/* Tile Description */}
-            <p className="text-base sm:text-lg text-gray-600 dark:text-gray-300 text-center max-w-md leading-relaxed">
-              Read aloud while our AI evaluates <span className="font-semibold text-red-400">pronunciation</span> and provides instant phonetic feedback.
+            <p className="text-base sm:text-lg text-ui-muted text-center max-w-md leading-relaxed">
+              Read a short phrase, listen back, and explore <span className="font-semibold text-ui-accent">word-by-word feedback</span> on your American or British English practice.
             </p>
           </Link>
         </div>
       </section>
-      <LoginModal isOpen={showLogin} onClose={() => setShowLogin(false)} />
     </main>
   );
 }

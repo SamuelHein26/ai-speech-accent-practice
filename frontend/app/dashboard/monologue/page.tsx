@@ -266,78 +266,78 @@ export default function MonologueDashboardPage() {
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-2 text-center">
-        <h1 className="text-3xl sm:text-4xl font-bold text-red-400">Your monologue dashboard</h1>
-        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+        <h1 className="page-title">Your monologue dashboard</h1>
+        <p className="text-sm sm:text-base text-ui-muted">
           Review your practice sessions, revisit transcripts, and listen to saved recordings.
         </p>
       </header>
 
-      <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
+      <section className="bg-ui-surface rounded-3xl shadow-lg border border-ui-border p-6 sm:p-8">
         <div className="flex flex-col gap-1 mb-6 text-center">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Monologue sessions</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <h2 className="text-2xl font-semibold text-ui-text">Monologue sessions</h2>
+          <p className="text-sm text-ui-muted">
             Review transcripts, filler-word counts, and replay your long-form practice takes.
           </p>
         </div>
         {loading ? (
-          <p className="text-center text-gray-600 dark:text-gray-400">Loading session history...</p>
+          <p className="text-center text-ui-muted">Loading session history...</p>
         ) : error ? (
-          <p className="text-center text-red-400 text-sm">{error}</p>
+          <p className="text-center text-ui-accent text-sm">{error}</p>
         ) : !hasRecordings ? (
-          <p className="text-center text-gray-600 dark:text-gray-400">
+          <p className="text-center text-ui-muted">
             You have no saved sessions yet. Start a monologue to build your library!
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-              <thead className="bg-gray-100 dark:bg-gray-800/80">
+            <table className="min-w-full divide-y divide-ui-border dark:divide-ui-border">
+              <thead className="bg-ui-surface-muted/80">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-ui-muted uppercase tracking-wider">
                     Recorded
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-ui-muted uppercase tracking-wider">
                     Transcript
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-ui-muted uppercase tracking-wider">
                     Filler words
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-ui-muted uppercase tracking-wider">
                     Duration
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-ui-muted uppercase tracking-wider">
                     Audio
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-ui-muted uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+              <tbody className="divide-y divide-ui-border dark:divide-ui-border">
                 {paginatedHistory.map((session) => {
                   const audioEntry = audioSources[session.session_id];
                   const audioUrl = audioEntry?.url;
                   const audioType = audioEntry?.mimeType || "audio/wav";
                   return (
-                    <tr key={session.session_id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/50 transition">
-                      <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-200">
+                    <tr key={session.session_id} className="hover:bg-ui-surface/70/50 transition">
+                      <td className="px-4 py-3 align-top text-sm text-ui-text">
                         {new Date(session.created_at).toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                      <td className="px-4 py-3 align-top text-sm text-ui-muted">
                         <span className="block max-w-sm whitespace-pre-line">
                           {session.final_transcript || "Transcript unavailable"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-300">
+                      <td className="px-4 py-3 align-top text-sm text-ui-text">
                         {typeof session.filler_word_count === "number" ? session.filler_word_count : "—"}
                       </td>
-                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                      <td className="px-4 py-3 align-top text-sm text-ui-muted">
                         {session.duration_seconds ? `${session.duration_seconds}s` : "Unknown"}
                       </td>
-                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                      <td className="px-4 py-3 align-top text-sm text-ui-muted space-y-2">
                         {session.audio_available ? (
                           <>
                             <button
-                              className="px-3.5 py-1.5 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition cursor-pointer text-sm disabled:opacity-60"
+                              className="px-3.5 py-1.5 rounded-lg bg-brand-secondary text-ui-on-brand font-medium hover:bg-brand-secondary/90 transition cursor-pointer text-sm disabled:opacity-60"
                               onClick={() => handleLoadAudio(session.session_id)}
                               disabled={loadingAudioId === session.session_id}
                             >
@@ -355,14 +355,14 @@ export default function MonologueDashboardPage() {
                             )}
                           </>
                         ) : (
-                          <span className="text-xs text-gray-500">Audio unavailable</span>
+                          <span className="text-xs text-ui-muted">Audio unavailable</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                      <td className="px-4 py-3 align-top text-sm text-ui-muted">
                         <button
                           onClick={() => handleDeleteRecording(session.session_id)}
                           disabled={deletingId === session.session_id}
-                          className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-red-400 font-medium hover:bg-red-50 dark:hover:bg-red-950/30 transition cursor-pointer text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="px-3 py-1.5 rounded-lg border border-ui-border text-ui-accent font-medium hover:bg-brand-primary/10 dark:hover:bg-brand-secondary/20 transition cursor-pointer text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           {deletingId === session.session_id ? "Removing..." : "Delete"}
                         </button>
@@ -383,8 +383,8 @@ export default function MonologueDashboardPage() {
                 onClick={() => setCurrentPage(page)}
                 className={`px-3 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer ${
                   page === currentPage
-                    ? "bg-red-600 text-white shadow"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+                    ? "bg-brand-secondary text-ui-on-brand shadow"
+                    : "bg-ui-surface-muted text-ui-text hover:bg-ui-surface-muted"
                 }`}
               >
                 {page}
@@ -394,10 +394,10 @@ export default function MonologueDashboardPage() {
         )}
 
         {audioError && (
-          <p className="mt-4 text-center text-sm text-red-400">{audioError}</p>
+          <p className="mt-4 text-center text-sm text-ui-accent">{audioError}</p>
         )}
         {deleteError && (
-          <p className="mt-2 text-center text-sm text-red-400" role="alert">
+          <p className="mt-2 text-center text-sm text-ui-accent" role="alert">
             {deleteError}
           </p>
         )}

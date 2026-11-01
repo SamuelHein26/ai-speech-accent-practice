@@ -310,64 +310,64 @@ export default function AccentDashboardPage() {
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-2 text-center">
-        <h1 className="text-3xl sm:text-4xl font-bold text-red-400">
+        <h1 className="page-title">
           Accent training history
         </h1>
-        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+        <p className="text-sm sm:text-base text-ui-muted">
           Listen back to targeted accent exercises separate from your monologue
           recordings.
         </p>
       </header>
 
-      <section className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
+      <section className="bg-ui-surface rounded-3xl shadow-lg border border-ui-border p-6 sm:p-8">
         <div className="flex flex-col gap-1 mb-6 text-center">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+          <h2 className="text-2xl font-semibold text-ui-text">
             Accent practice library
           </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-ui-muted">
             Review pronunciation scores, transcripts, and audio from your
             focused accent drills.
           </p>
         </div>
 
         {loading ? (
-          <p className="text-center text-gray-600 dark:text-gray-400">
+          <p className="text-center text-ui-muted">
             Loading accent practice history...
           </p>
         ) : error ? (
-          <p className="text-center text-red-400 text-sm">{error}</p>
+          <p className="text-center text-ui-accent text-sm">{error}</p>
         ) : !hasRecordings ? (
-          <p className="text-center text-gray-600 dark:text-gray-400">
+          <p className="text-center text-ui-muted">
             You haven&apos;t saved any accent training attempts yet. Visit the
             accent page to capture your first clip.
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-              <thead className="bg-gray-100 dark:bg-gray-800/80">
+            <table className="min-w-full divide-y divide-ui-border dark:divide-ui-border">
+              <thead className="bg-ui-surface-muted/80">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-ui-muted uppercase tracking-wider">
                     Recorded
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-ui-muted uppercase tracking-wider">
                     Accent
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-ui-muted uppercase tracking-wider">
                     Score
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-ui-muted uppercase tracking-wider">
                     Transcript
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-ui-muted uppercase tracking-wider">
                     Audio
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-ui-muted uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+              <tbody className="divide-y divide-ui-border dark:divide-ui-border">
                 {paginatedAttempts.map((attempt) => {
                   const audioEntry = audioSources[attempt.attempt_id];
                   const audioUrl = audioEntry?.url;
@@ -376,33 +376,33 @@ export default function AccentDashboardPage() {
                   return (
                     <tr
                       key={attempt.attempt_id}
-                      className="hover:bg-gray-50/70 dark:hover:bg-gray-800/50 transition"
+                      className="hover:bg-ui-surface/70/50 transition"
                     >
-                      <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-200">
+                      <td className="px-4 py-3 align-top text-sm text-ui-text">
                         {new Date(attempt.created_at).toLocaleString()}
                       </td>
 
-                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                      <td className="px-4 py-3 align-top text-sm text-ui-muted">
                         {formatAccentLabel(attempt.accent_target)}
                       </td>
 
-                      <td className="px-4 py-3 align-top text-sm font-semibold text-red-400">
+                      <td className="px-4 py-3 align-top text-sm font-semibold text-ui-accent">
                         {typeof attempt.score === "number"
                           ? `${Math.round(attempt.score)} / 100`
                           : "—"}
                       </td>
 
-                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                      <td className="px-4 py-3 align-top text-sm text-ui-muted">
                         <span className="block max-w-sm whitespace-pre-line">
                           {attempt.transcript || "Transcript unavailable"}
                         </span>
                       </td>
 
-                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                      <td className="px-4 py-3 align-top text-sm text-ui-muted space-y-2">
                         {attempt.audio_available ? (
                           <>
                             <button
-                              className="px-3.5 py-1.5 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition cursor-pointer text-sm disabled:opacity-60"
+                              className="px-3.5 py-1.5 rounded-lg bg-brand-secondary text-ui-on-brand font-medium hover:bg-brand-secondary/90 transition cursor-pointer text-sm disabled:opacity-60"
                               onClick={() =>
                                 handleLoadAudio(attempt.attempt_id)
                               }
@@ -429,19 +429,19 @@ export default function AccentDashboardPage() {
                             )}
                           </>
                         ) : (
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-ui-muted">
                             Audio unavailable
                           </span>
                         )}
                       </td>
 
-                      <td className="px-4 py-3 align-top text-sm text-gray-600 dark:text-gray-400">
+                      <td className="px-4 py-3 align-top text-sm text-ui-muted">
                         <button
                           onClick={() =>
                             handleDeleteAttempt(attempt.attempt_id)
                           }
                           disabled={deletingId === attempt.attempt_id}
-                          className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-red-400 font-medium hover:bg-red-50 dark:hover:bg-red-950/30 transition cursor-pointer text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="px-3 py-1.5 rounded-lg border border-ui-border text-ui-accent font-medium hover:bg-brand-primary/10 dark:hover:bg-brand-secondary/20 transition cursor-pointer text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           {deletingId === attempt.attempt_id
                             ? "Removing..."
@@ -464,8 +464,8 @@ export default function AccentDashboardPage() {
                 onClick={() => setCurrentPage(page)}
                 className={`px-3 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer ${
                   page === currentPage
-                    ? "bg-red-600 text-white shadow"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+                    ? "bg-brand-secondary text-ui-on-brand shadow"
+                    : "bg-ui-surface-muted text-ui-text hover:bg-ui-surface-muted"
                 }`}
               >
                 {page}
@@ -475,14 +475,14 @@ export default function AccentDashboardPage() {
         )}
 
         {audioError && (
-          <p className="mt-4 text-center text-sm text-red-400">
+          <p className="mt-4 text-center text-sm text-ui-accent">
             {audioError}
           </p>
         )}
 
         {deleteError && (
           <p
-            className="mt-2 text-center text-sm text-red-400"
+            className="mt-2 text-center text-sm text-ui-accent"
             role="alert"
           >
             {deleteError}
