@@ -172,12 +172,13 @@ class DeepgramAccentService:
         audio_bytes: bytes,
         *,
         timeout: float = 120.0,
+        content_type: str = "audio/webm",
     ) -> Tuple[str, List[dict]]:
         """Return ``(transcript, words)`` where each word has ``confidence``."""
         body = _post(
             self.api_key,
             audio_bytes,
-            content_type="audio/webm",
+            content_type=content_type,
             timeout=timeout,
         )
         alt = _parse_alternative(body)

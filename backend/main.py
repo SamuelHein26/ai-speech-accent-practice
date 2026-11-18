@@ -3,10 +3,11 @@ import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from services.auth_service import require_current_user
 from services.llm_service import _build_service as _build_llm_service
 from routers import users, sessions, auth, streaming, accent
 from schemas import (
@@ -94,7 +95,7 @@ def health():
     return {"status": "ok"}
 
 # === Topic Generation ===
-@app.post("/topics/generate", response_model=TopicResponse)
+@app.post("/topics/generate", response_model=TopicResponse, dependencies=[Depends(require_current_user)])
 async def generate_topics(payload: TopicRequest):
     """Generate topic suggestions based on the user's recent monologue."""
     transcript = payload.transcript.strip()
@@ -109,7 +110,7 @@ async def generate_topics(payload: TopicRequest):
 
 
 # === Feedback Analysis ===
-@app.post("/feedback/analyze", response_model=FeedbackResponse)
+@app.post("/feedback/analyze", response_model=FeedbackResponse, dependencies=[Depends(require_current_user)])
 async def analyze_feedback(payload: FeedbackRequest):
     """Analyze speech feedback."""
 

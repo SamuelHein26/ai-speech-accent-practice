@@ -58,7 +58,7 @@ class PracticeAttempt(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     accent_target = Column(String(32), nullable=False)
     expected_text = Column(Text, nullable=False)
-    audio_path = Column(Text, nullable=False)
+    audio_path = Column(Text, nullable=True)
     transcript_raw = Column(Text, nullable=True)
     feedback_json = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     overall_score = Column(Numeric(5, 2), nullable=True)

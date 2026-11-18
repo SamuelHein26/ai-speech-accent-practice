@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy import select
@@ -22,7 +22,7 @@ from services.deepgram_service import (
     DeepgramError,
 )
 from services.audio_storage import AudioStorage, StorageError
-from services.auth_service import get_current_user
+from services.auth_service import get_current_user, require_current_user
 
 
 router = APIRouter(prefix="/accent", tags=["accent"])
@@ -41,13 +41,6 @@ def _get_transcriber() -> DeepgramAccentService:
     return _transcriber
 
 
-def _pick_extension(file: UploadFile) -> str:
-    filename = file.filename or "audio.webm"
-    if "." in filename:
-        return filename[filename.rfind(".") :]
-    return ".webm"
-
-
 def _media_type_from_path(path: str) -> str:
     lowered = path.lower()
     if lowered.endswith(".wav"):
@@ -61,45 +54,20 @@ def _media_type_from_path(path: str) -> str:
     return "audio/webm"
 
 
-def _coerce_user_id(value: str | None) -> Optional[int]:
-
-    if not value:
-        return None
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        return None
-
-
 @router.post("/train", response_model=AccentTrainingResponse)
 async def train_accent(
     text: str = Form(...),
-    accent: str = Form(...),
-    userId: str | None = Form(None),
+    accent: Literal["american", "british"] = Form(...),
     audio: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
+    current_user: User = Depends(require_current_user),
 ):
-
-    audio_bytes = await audio.read() 
-
+    limit = 20 * 1024 * 1024
+    audio_bytes = await audio.read(limit + 1)
     if not audio_bytes:
         raise HTTPException(status_code=400, detail="Empty audio upload")
-
-    ext = _pick_extension(audio)
-    attempt_uuid = uuid.uuid4()
-    object_key = f"{attempt_uuid}{ext}"
-
-    try:
-        stored_audio_path = await storage.store_bytes(
-            object_key,
-            audio_bytes,
-            content_type=audio.content_type or "application/octet-stream",
-        )
-    except StorageError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Audio storage failed: {exc}") from exc
+    if len(audio_bytes) > limit:
+        raise HTTPException(status_code=413, detail="Recording exceeds 20 MB.")
 
     transcriber = _get_transcriber()
 
@@ -107,6 +75,7 @@ async def train_accent(
         transcript_text, word_entries = await asyncio.to_thread(
             transcriber.transcribe_with_words,
             audio_bytes,
+            content_type=audio.content_type or "application/octet-stream",
         )
     except DeepgramError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -126,23 +95,12 @@ async def train_accent(
     )
 
     tips = build_tip(feedback_items, accent)
-    db_user_id: Optional[int] = None
-    if current_user is not None:
-        db_user_id = current_user.id
-    else:
-        requested_id = _coerce_user_id(userId)
-        if requested_id is not None:
-            result = await db.execute(select(User.id).where(User.id == requested_id))
-            db_user_id = result.scalar_one_or_none()
-            
+    attempt_uuid = uuid.uuid4()
     attempt = PracticeAttempt(
         attempt_id=attempt_uuid,
-        user_id=db_user_id,
+        user_id=current_user.id,
         accent_target=accent,
         expected_text=text,
-        audio_path=stored_audio_path,
-        transcript_raw=transcript_text,
-        feedback_json=[item.to_response() for item in feedback_items],
         overall_score=score,
     )
 
@@ -262,7 +220,7 @@ async def accent_audio(
         raise HTTPException(status_code=404, detail="Audio file unavailable")
 
     try:
-        audio_bytes = await storage.download_audio(attempt.audio_path)
+        audio_bytes = await storage.download(attempt.audio_path)
     except StorageError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -297,7 +255,7 @@ async def delete_accent_attempt(
 
     if attempt.audio_path:
         try:
-            await storage.delete_audio(attempt.audio_path)
+            await storage.delete(attempt.audio_path)
         except StorageError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except Exception as exc:  # pragma: no cover - defensive guard

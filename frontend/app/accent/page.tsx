@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { API_BASE } from "../lib/api";
+import { createAudioRecorder, recordingFilename } from "../lib/recording";
+
 import practicePhrasesData from "./practice-phrases.json";
 
 const FALLBACK_PHRASE =
@@ -30,10 +33,6 @@ function pickRandomPhrase(exclude?: string): string {
 
   return candidate;
 }
-
-const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_BASE_URL) ||
-  "http://127.0.0.1:8000";
 
 type AccentOption = "american" | "british";
 
@@ -64,6 +63,9 @@ export default function AccentPage() {
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [currentPhrase, setCurrentPhrase] = useState("");
   const [isMounted, setIsMounted] = useState(false);
+  const [downloadName, setDownloadName] = useState("comftalk-accent");
+  const mountedRef = useRef(false);
+  const startingRef = useRef(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const playbackUrlRef = useRef<string | null>(null);
@@ -76,8 +78,14 @@ export default function AccentPage() {
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      recorderRef.current?.stream?.getTracks().forEach((track) => track.stop());
+      mountedRef.current = false;
+      const recorder = recorderRef.current;
+      if (recorder) {
+        recorder.onstop = null;
+        recorder.stream.getTracks().forEach((track) => track.stop());
+      }
     };
   }, []);
 
@@ -103,27 +111,25 @@ export default function AccentPage() {
       setPlaybackUrl(objectUrl);
 
       const formData = new FormData();
-      formData.append("audio", blob, "accent-practice.webm");
+      const filename = recordingFilename("accent", blob.type);
+      setDownloadName(filename);
+      formData.append("audio", blob, filename);
       formData.append("text", currentPhrase);
       formData.append("accent", selectedAccent);
 
-      const headers: Record<string, string> = {};
-      const token =
-        typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-
       try {
+        const token = localStorage.getItem("token");
+        if (!token) throw new Error("Sign in again to submit your practice.");
+
         const response = await fetch(`${API_BASE}/accent/train`, {
           method: "POST",
-          headers,
+          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         });
 
         if (!response.ok) {
           const detail = (await response.json().catch(() => ({}))) as { detail?: string };
-          throw new Error(detail.detail || "Accent analysis failed.");
+          throw new Error(typeof detail.detail === "string" ? detail.detail : "Accent analysis failed.");
         }
 
         const data = (await response.json()) as AccentTrainingResponse;
@@ -144,9 +150,17 @@ export default function AccentPage() {
       return;
     }
 
+    if (startingRef.current) return;
+    startingRef.current = true;
+    let stream: MediaStream | undefined;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      const activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = activeStream;
+      if (!mountedRef.current) {
+        activeStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      const recorder = createAudioRecorder(activeStream);
       chunksRef.current = [];
 
       recorder.ondataavailable = (event) => {
@@ -156,24 +170,40 @@ export default function AccentPage() {
       };
 
       recorder.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop());
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        activeStream.getTracks().forEach((track) => track.stop());
+        if (!mountedRef.current) return;
+        const mimeType = recorder.mimeType || chunksRef.current[0]?.type;
+        const blob = new Blob(chunksRef.current, { type: mimeType });
         chunksRef.current = [];
-        void uploadRecording(blob);
+        if (blob.size) {
+          void uploadRecording(blob);
+        } else {
+          setError("No audio was recorded. Try again.");
+          setIsUploading(false);
+        }
       };
 
       recorder.start();
       recorderRef.current = recorder;
+      if (playbackUrlRef.current) {
+        URL.revokeObjectURL(playbackUrlRef.current);
+        playbackUrlRef.current = null;
+        setPlaybackUrl(null);
+      }
       setIsRecording(true);
       setError(null);
       setResult(null);
     } catch (err) {
+      stream?.getTracks().forEach((track) => track.stop());
       const message = err instanceof Error ? err.message : "Unable to access microphone.";
       setError(message);
+    } finally {
+      startingRef.current = false;
     }
   }, [uploadRecording]);
 
   const stopRecording = useCallback(() => {
+    setIsUploading(true);
     recorderRef.current?.stop();
     setIsRecording(false);
   }, []);
@@ -215,11 +245,13 @@ export default function AccentPage() {
                     <button
                       key={option}
                       type="button"
+                      aria-pressed={active}
+                      disabled={isBusy}
                       onClick={() => setSelectedAccent(option)}
                       className={`px-3 py-2 text-center text-sm font-medium rounded-full transition-colors cursor-pointer sm:px-4 ${
                         active
-                          ? "bg-brand-secondary text-ui-on-brand shadow"
-                          : "text-ui-muted hover:bg-ui-surface-muted"
+                          ? "bg-brand-sage/15 text-ui-sage shadow-sm"
+                          : "text-ui-muted hover:bg-brand-sage/10"
                       }`}
                     >
                       {option === "american" ? "American English" : "British English"}
@@ -247,12 +279,12 @@ export default function AccentPage() {
                     setPlaybackUrl(null);
                   }}
                   disabled={isBusy}
-                  className="inline-flex items-center gap-2 rounded-full border border-ui-border bg-ui-surface px-3 py-1.5 text-xs font-medium text-ui-muted transition hover:border-brand-secondary hover:text-ui-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-secondary focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed dark:hover:border-brand-secondary dark:hover:text-ui-accent cursor-pointer"
+                  className="inline-flex items-center gap-2 rounded-full border border-ui-border bg-ui-surface px-3 py-1.5 text-xs font-medium text-ui-muted transition hover:border-brand-sage hover:text-ui-sage focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-sage focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                 >
                   Refresh phrase
                 </button>
               </div>
-                <div className="rounded-2xl border border-dashed border-ui-border-strong bg-brand-primary/10/40 p-6">
+                <div className="rounded-2xl border border-dashed border-brand-sage/45 bg-brand-sage/5 p-6">
                   {isMounted ? (
                     <ParagraphFeedback feedback={result?.words} fallbackText={currentPhrase} />
                   ) : (
@@ -269,8 +301,8 @@ export default function AccentPage() {
                   disabled={isUploading}
                   className={`inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-secondary focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed ${
                     isRecording
-                      ? "bg-brand-secondary text-ui-on-brand hover:bg-brand-secondary/90"
-                      : "bg-brand-secondary text-ui-on-brand hover:bg-brand-secondary/90"
+                      ? "bg-brand-secondary text-ui-on-brand hover:bg-brand-sage hover:text-brand-on-sage"
+                      : "bg-brand-secondary text-ui-on-brand hover:bg-brand-sage hover:text-brand-on-sage"
                   }`}
                 >
                   {isRecording ? "Stop recording" : "Record attempt"}
@@ -323,6 +355,10 @@ export default function AccentPage() {
               <audio controls src={playbackUrl} className="w-full">
                 Your browser does not support audio playback.
               </audio>
+              <a href={playbackUrl} download={downloadName} className="button-primary">
+                Download recording
+              </a>
+              <p className="text-sm text-ui-muted">Download before leaving this page or replacing the recording.</p>
             </div>
           )}
         </section>

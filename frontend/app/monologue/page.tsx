@@ -10,8 +10,10 @@ import {
 } from "react";
 import LiveWaveform from "../components/LiveWaveform";
 
-type StartSessionResponse = { session_id: string; is_guest: boolean };
-type FinalizeResponse = { final: string; filler_word_count: number; audio_url?: string };
+import { API_BASE } from "../lib/api";
+import { createAudioRecorder, recordingFilename } from "../lib/recording";
+
+type FinalizeResponse = { final: string; filler_word_count: number };
 type TopicResponse = { topics: string[] };
 type FeedbackResponse = { feedback: string };
 
@@ -29,22 +31,6 @@ function createAudioContext(desiredSampleRate = 48000): AudioContext {
     return new Ctor();
   }
 }
-
-const RAW_API_BASE =
-  (typeof process !== "undefined" &&
-    process.env.NEXT_PUBLIC_API_BASE_URL) ||
-  "http://127.0.0.1:8000";
-
-const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
-
-const resolveApiUrl = (path: string): string => {
-  if (!path) return path;
-  if (/^https?:\/\//i.test(path)) {
-    return path;
-  }
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  return `${API_BASE}${normalized}`;
-};
 
 const SUGGESTION_SILENCE_MS = 6_000;
 
@@ -188,7 +174,9 @@ export default function MonologuePage() {
   const isNearLimit = remainingSeconds <= 10 && isRecording;
   const showInteractivePanels = isRecording || isProcessing;
 
-  const sessionRef = useRef<string | null>(null);
+  const mountedRef = useRef(false);
+  const startingRef = useRef(false);
+  const [downloadName, setDownloadName] = useState("comftalk-monologue");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null); 
   const streamRef = useRef<MediaStream | null>(null);
   const audioChunks = useRef<Blob[]>([]); 
@@ -217,10 +205,10 @@ export default function MonologuePage() {
   useEffect(() => {
     setMounted(true);
 
-    const existing = sessionStorage.getItem("guest_session_id");
-    if (existing) sessionRef.current = existing;
+    mountedRef.current = true;
 
     return () => {
+      mountedRef.current = false;
       try {
         if (
           wsRef.current &&
@@ -229,8 +217,8 @@ export default function MonologuePage() {
           wsRef.current.send(
             JSON.stringify({ type: "Terminate" })
           );
-          wsRef.current.close();
         }
+        wsRef.current?.close();
       } catch {
       }
 
@@ -271,18 +259,12 @@ export default function MonologuePage() {
       options: { revokePrevious?: boolean } = {}
     ) => {
       const { revokePrevious = false } = options;
-      setAudioUrl((prev) => {
-        if (
-          revokePrevious &&
-          prev &&
-          prev.startsWith("blob:") &&
-          prev !== nextUrl
-        ) {
-          URL.revokeObjectURL(prev);
-        }
-        audioUrlRef.current = nextUrl;
-        return nextUrl;
-      });
+      const previousUrl = audioUrlRef.current;
+      if (revokePrevious && previousUrl && previousUrl !== nextUrl) {
+        URL.revokeObjectURL(previousUrl);
+      }
+      audioUrlRef.current = nextUrl;
+      setAudioUrl(nextUrl);
     },
     []
   );
@@ -509,7 +491,8 @@ export default function MonologuePage() {
   };
 
   const startRecording = async (): Promise<void> => {
-  
+    if (startingRef.current) return;
+    startingRef.current = true;
     setError(null);
     setFinalTranscript("");
     setFillerWordCount(null);
@@ -520,7 +503,7 @@ export default function MonologuePage() {
     setLivePartial("");
     lastFinalRef.current = "";
     lastPartialRef.current = "";
-    applyAudioUrl(null);
+    applyAudioUrl(null, { revokePrevious: true });
     setSuggestions([]);
     setIsFetchingSuggestions(false);
     setSuggestionError(null);
@@ -533,32 +516,8 @@ export default function MonologuePage() {
     timeLimitTriggeredRef.current = false;
 
     try {
-      const token =
-        typeof window !== "undefined"
-          ? localStorage.getItem("token")
-          : null;
-
-      const startRes = await fetch(`${API_BASE}/session/start`, {
-        method: "POST",
-        headers: token
-          ? { Authorization: `Bearer ${token}` }
-          : {},
-      });
-      if (!startRes.ok) {
-        const err = (await startRes.json()) as {
-          detail?: string;
-        };
-        throw new Error(
-          err.detail || "Failed to start session"
-        );
-      }
-      const startData: StartSessionResponse =
-        await startRes.json();
-      sessionRef.current = startData.session_id;
-      sessionStorage.setItem(
-        "guest_session_id",
-        startData.session_id
-      );
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("Sign in to start practising.");
 
       const stream =
         await navigator.mediaDevices.getUserMedia({
@@ -568,11 +527,13 @@ export default function MonologuePage() {
             echoCancellation: true,
           },
         });
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
 
-      const mr = new MediaRecorder(stream, {
-        mimeType: "audio/webm",
-      });
+      const mr = createAudioRecorder(stream);
       mediaRecorderRef.current = mr;
       audioChunks.current = [];
       mr.ondataavailable = (evt: BlobEvent) => {
@@ -604,7 +565,9 @@ export default function MonologuePage() {
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
-      ws.onopen = () => {
+      ws.onopen = () => ws.send(token);
+
+      const startLiveAudio = () => {
         const audioCtx = createAudioContext(48000);
         audioCtxRef.current = audioCtx;
 
@@ -649,6 +612,7 @@ export default function MonologuePage() {
           ) as Record<string, unknown>;
           const t = msg["type"];
           if (t === "Begin") {
+            startLiveAudio();
             return;
           }
           if (t === "Error") {
@@ -694,7 +658,8 @@ export default function MonologuePage() {
 
       ws.onerror = () =>
         setError("Streaming connection error");
-      ws.onclose = () => {
+      ws.onclose = (event) => {
+        if (event.code === 1008) setError("Sign in again to use live transcription.");
       };
 
       setIsRecording(true);
@@ -706,6 +671,8 @@ export default function MonologuePage() {
       setError(msg);
 
       await stopRecording();
+    } finally {
+      startingRef.current = false;
     }
   };
 
@@ -727,8 +694,9 @@ export default function MonologuePage() {
           );
         } catch {
         }
-        wsRef.current.close();
       }
+      wsRef.current?.close();
+      wsRef.current = null;
 
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
@@ -743,7 +711,8 @@ export default function MonologuePage() {
         sourceRef.current.disconnect();
       }
       if (audioCtxRef.current) {
-        await audioCtxRef.current.close();
+        await audioCtxRef.current.close().catch(() => {});
+        audioCtxRef.current = null;
       }
       const mr = mediaRecorderRef.current;
       if (
@@ -755,67 +724,40 @@ export default function MonologuePage() {
           mr.stop();
         });
       }
-      if (!sessionRef.current)
-        throw new Error(
-          "Session not initialized"
-        );
-
-      if (audioChunks.current.length > 0) {
-        const blob = new Blob(
-          audioChunks.current,
-          { type: "audio/webm" }
-        );
-
-        const fd = new FormData();
-        fd.append("file", blob, "final.webm");
-
-        // upload chunk(s)
-        try {
-          await fetch(
-            `${API_BASE}/session/${sessionRef.current}/chunk`,
-            {
-              method: "POST",
-              body: fd,
-            }
-          );
-        } catch {
-        }
-
-        let finalText = "";
-        try {
-          const finalizeRes = await fetch(
-            `${API_BASE}/session/${sessionRef.current}/finalize`,
-            {
-              method: "POST",
-            }
-          );
-          if (finalizeRes.ok) {
-            const data: FinalizeResponse = await finalizeRes.json();
-            finalText = data.final?.trim() || "";
-            setFillerWordCount(data.filler_word_count ?? null);
-            const playbackUrl = data.audio_url
-              ? resolveApiUrl(data.audio_url)
-              : URL.createObjectURL(blob);
-            applyAudioUrl(playbackUrl, { revokePrevious: true });
-            if (finalText) {
-              void requestFeedback(finalText);
-            }
-          }
-        } catch {
-        }
-
-        if (!finalText) {
-          finalText = displayText.trim() || "Transcription incomplete.";
-          if (displayText.trim()) {
-            void requestFeedback(displayText.trim());
-          }
-          const localUrl = URL.createObjectURL(blob);
-          applyAudioUrl(localUrl, { revokePrevious: true });
-        }
-
-        setFinalTranscript(finalText);
-        audioChunks.current = [];
+      if (!mountedRef.current) return;
+      if (!audioChunks.current.length) {
+        setError((previous) => previous || "No audio was recorded. Try again.");
+        return;
       }
+
+      const mimeType = mr?.mimeType || audioChunks.current[0].type;
+      const blob = new Blob(audioChunks.current, { type: mimeType });
+      audioChunks.current = [];
+      const filename = recordingFilename("monologue", mimeType);
+      setDownloadName(filename);
+      applyAudioUrl(URL.createObjectURL(blob), { revokePrevious: true });
+
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("Sign in again to submit your practice.");
+
+      const form = new FormData();
+      form.append("file", blob, filename);
+      const response = await fetch(`${API_BASE}/session/complete`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (!response.ok) {
+        if (displayText.trim()) setFinalTranscript(displayText.trim());
+        const body = await response.json().catch(() => null);
+        throw new Error(typeof body?.detail === "string" ? body.detail : "Could not analyze this recording.");
+      }
+
+      const data: FinalizeResponse = await response.json();
+      const finalText = data.final?.trim() || displayText.trim();
+      setFinalTranscript(finalText || "No speech was detected.");
+      setFillerWordCount(data.filler_word_count);
+      if (finalText) void requestFeedback(finalText);
     } catch (e: unknown) {
       const msg =
         e instanceof Error
@@ -870,7 +812,7 @@ export default function MonologuePage() {
                   <button
                     onClick={startRecording}
                     aria-label="Start recording"
-                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-brand-secondary hover:bg-brand-secondary/90 text-ui-on-brand shadow-md flex items-center justify-center cursor-pointer transition"
+                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-brand-secondary hover:bg-brand-sage hover:text-brand-on-sage text-ui-on-brand shadow-md flex items-center justify-center cursor-pointer transition"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -896,7 +838,7 @@ export default function MonologuePage() {
                   <button
                     onClick={stopRecording}
                     aria-label="Stop recording"
-                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-brand-secondary hover:bg-brand-secondary/90 text-ui-on-brand shadow-md flex items-center justify-center cursor-pointer transition"
+                    className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-brand-secondary hover:bg-brand-sage hover:text-brand-on-sage text-ui-on-brand shadow-md flex items-center justify-center cursor-pointer transition"
                   >
                     <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-md bg-ui-surface" />
                   </button>
@@ -1018,7 +960,7 @@ export default function MonologuePage() {
                       !isRecording ||
                       isFetchingSuggestions
                     }
-                    className="px-4 py-2 rounded-full text-sm font-medium bg-brand-secondary text-ui-on-brand shadow hover:bg-brand-secondary/90 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="rounded-full border border-brand-sage/35 bg-brand-sage/10 px-4 py-2 text-sm font-medium text-ui-sage transition hover:bg-brand-sage/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-sage cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isFetchingSuggestions
                       ? "Generating..."
@@ -1171,6 +1113,12 @@ export default function MonologuePage() {
                 src={audioUrl}
                 className="w-full mt-2"
               />
+              <a href={audioUrl} download={downloadName} className="button-primary mt-4">
+                Download recording
+              </a>
+              <p className="mt-2 text-sm text-ui-muted">
+                Download before starting a new recording or leaving this page.
+              </p>
             </section>
           )}
         </main>

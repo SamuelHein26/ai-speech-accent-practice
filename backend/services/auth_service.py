@@ -36,8 +36,11 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
+    return await user_for_token(token, db)
+
+
+async def user_for_token(token: str | None, db: AsyncSession) -> User | None:
     if not token:
-        # No token → guest mode
         return None
 
     try:
@@ -51,5 +54,14 @@ async def get_current_user(
         user = result.scalar_one_or_none()
         return user
     except JWTError:
-        # Invalid token → guest mode
         return None
+
+
+async def require_current_user(user: User | None = Depends(get_current_user)) -> User:
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sign in to practise.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user

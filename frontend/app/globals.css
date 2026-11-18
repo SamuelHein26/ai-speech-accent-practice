@@ -3,19 +3,19 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --ui-page: #faf9f9;
-  --ui-surface: #ffffff;
+  --ui-page: #fff3eb;
+  --ui-surface: #fff8f0;
   --ui-surface-muted: #f1f0f0;
   --ui-text: #1c1c1e;
   --ui-muted: #6d6d72;
   --ui-border: #e1dfdf;
   --ui-border-strong: #c5c3c3;
   --ui-accent: #fb6b6b;
-  --ui-on-brand: #ffffff;
+  --ui-sage: #326650;
+  --ui-on-brand: #fff8f0;
   --brand-primary: #fb6b6b;
   --brand-secondary: #fb6b6b;
-  --font-geist-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --font-body: "Iosevka Charon", system-ui, sans-serif;
 }
 
 @theme inline {
@@ -27,15 +27,17 @@
   --color-ui-border: var(--ui-border);
   --color-ui-border-strong: var(--ui-border-strong);
   --color-ui-accent: var(--ui-accent);
+  --color-ui-sage: var(--ui-sage);
   --color-ui-on-brand: var(--ui-on-brand);
+  --color-brand-sage: #4d9078;
+  --color-brand-on-sage: #101a16;
   --color-brand-primary: var(--brand-primary);
   --color-brand-secondary: var(--brand-secondary);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body);
 }
 
 .dark {
-  --ui-page: #1c1c1e;
+  --ui-page: #282526;
   --ui-surface: #29292d;
   --ui-surface-muted: #3e3e43;
   --ui-text: #f1f0f0;
@@ -43,6 +45,7 @@
   --ui-border: #3e3e43;
   --ui-border-strong: #55555a;
   --ui-accent: #fb6b6b;
+  --ui-sage: #8cc5ad;
 }
 
 @keyframes fadeIn {
@@ -64,7 +67,12 @@
 body {
   background: var(--ui-page);
   color: var(--ui-text);
-  font-family: var(--font-geist-sans);
+  font-family: var(--font-body);
+}
+
+button,
+.button-primary {
+  transition-duration: 0.35s;
 }
 
 @layer components {
@@ -75,15 +83,15 @@ body {
     @apply text-3xl font-semibold tracking-tight text-ui-text sm:text-4xl;
   }
   .page-eyebrow {
-    @apply text-sm font-semibold uppercase tracking-widest text-ui-accent;
+    @apply text-sm font-semibold uppercase tracking-widest text-ui-sage;
   }
   .form-label {
     @apply block text-sm font-medium text-ui-text;
   }
   .form-input {
-    @apply block w-full min-w-0 rounded-xl border border-ui-border-strong bg-ui-surface px-4 py-3 text-ui-text transition placeholder:text-ui-muted focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/25 disabled:opacity-60;
+    @apply block w-full min-w-0 rounded-xl border border-ui-border-strong bg-ui-surface px-4 py-3 text-ui-text transition placeholder:text-ui-muted focus:border-brand-sage focus:outline-none focus:ring-2 focus:ring-brand-sage/25 disabled:opacity-60;
   }
   .button-primary {
-    @apply inline-flex cursor-pointer items-center justify-center rounded-xl bg-brand-secondary px-5 py-3 text-sm font-semibold text-ui-on-brand transition hover:bg-brand-secondary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex cursor-pointer items-center justify-center rounded-xl bg-brand-secondary px-5 py-3 text-sm font-semibold text-ui-on-brand transition hover:bg-brand-sage hover:text-brand-on-sage focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary disabled:cursor-not-allowed disabled:opacity-60;
   }
 }

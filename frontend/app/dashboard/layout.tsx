@@ -28,8 +28,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     href={tab.href}
                     className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${
                       isActive
-                        ? "bg-brand-secondary text-ui-on-brand shadow"
-                        : "text-ui-muted hover:text-ui-accent hover:bg-ui-surface-muted"
+                        ? "bg-brand-sage/15 text-ui-sage"
+                        : "text-ui-muted hover:text-ui-sage hover:bg-brand-sage/5"
                     }`}
                   >
                     {tab.label}

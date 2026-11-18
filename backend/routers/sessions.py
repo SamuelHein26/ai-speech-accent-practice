@@ -1,6 +1,9 @@
 import asyncio
 import os
 import re
+import uuid
+import wave
+from tempfile import TemporaryDirectory
 from pathlib import Path
 from typing import Optional
 
@@ -12,17 +15,15 @@ from database import get_db
 from dotenv import load_dotenv
 from models import Session, User
 from schemas import SessionSummary
-from services.auth_service import get_current_user
-from services.session_manager import SessionManager
+from services.auth_service import get_current_user, require_current_user
 from services.audio_storage import AudioStorage, StorageError
-from services.deepgram_service import DeepgramService
+from services.deepgram_service import DeepgramError, DeepgramService
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 router = APIRouter(prefix="/session", tags=["Sessions"])
 
 storage = AudioStorage()
-session_manager = SessionManager(Path("./live_sessions"), storage=storage)
 
 _transcriber: Optional[DeepgramService] = None
 
@@ -70,96 +71,63 @@ def count_filler_words(transcript: str | None) -> int:
 
     return total
 
-@router.post("/start")
-async def start_session(
+@router.post("/complete")
+async def complete_session(
+    file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user: User = Depends(require_current_user),
 ):
-    user_id = None
-    is_guest = True
-    if current_user:
-        user_id = current_user.id
-        is_guest = False
-    return await session_manager.create_session(db, user_id=user_id, is_guest=is_guest)
+    limit = 20 * 1024 * 1024
+    audio = await file.read(limit + 1)
+    if not audio:
+        raise HTTPException(status_code=400, detail="Empty audio upload")
+    if len(audio) > limit:
+        raise HTTPException(status_code=413, detail="Recording exceeds 20 MB.")
 
-@router.post("/{session_id}/chunk")
-async def upload_chunk(session_id: str, file: UploadFile = File(...)):
-    path = session_manager.get_audio_path(session_id)
+    with TemporaryDirectory(prefix="comftalk-") as workdir:
+        source = Path(workdir) / "recording"
+        wav = Path(workdir) / "recording.wav"
+        await asyncio.to_thread(source.write_bytes, audio)
 
-    async with asyncio.Lock():
-        with open(path, "ab") as f:
-            f.write(await file.read())
-    return {"ready": True}
-
-@router.post("/{session_id}/finalize")
-async def finalize_session(session_id: str, db: AsyncSession = Depends(get_db)):
-    webm_path = session_manager.get_audio_path(session_id)
-    wav_path = str(webm_path).replace(".webm", ".wav")
-
-    if not os.path.exists(webm_path):
-        raise HTTPException(status_code=404, detail="Audio file not found.")
-
-    proc = await asyncio.create_subprocess_exec(
-        "ffmpeg", "-y", "-loglevel", "error",
-        "-i", str(webm_path),
-        "-ar", "16000", "-ac", "1",
-        wav_path,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    _, err = await proc.communicate()
-    if proc.returncode != 0:
-        raise HTTPException(status_code=500, detail=f"FFmpeg error: {err.decode()}")
-
-    duration_seconds: int | None = None
-    try:
-        probe = await asyncio.create_subprocess_exec(
-            "ffprobe", "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=nokey=1:noprint_wrappers=1",
-            wav_path,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-nostdin", "-loglevel", "error",
+            "-format_whitelist", "matroska,webm,ogg,mov,mp4,m4a,3gp,3g2,mj2,wav",
+            "-i", str(source), "-t", "180", "-ar", "16000", "-ac", "1", str(wav),
+            stderr=asyncio.subprocess.DEVNULL,
         )
-        out, _ = await probe.communicate()
-        duration_seconds = int(float(out.decode().strip()))
-    except Exception:
-        duration_seconds = None
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=30)
+        except (TimeoutError, asyncio.CancelledError):
+            if proc.returncode is None:
+                proc.kill()
+                await proc.wait()
+            raise
+        if proc.returncode != 0:
+            raise HTTPException(status_code=422, detail="Unable to read this recording.")
 
-    try:
-        transcriber = _get_transcriber()
-        transcript, timing_analysis = await asyncio.to_thread(
-            transcriber.transcribe_with_timing, wav_path
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Transcription error: {e}")
+        # Read duration from the converted WAV so usage matches the audio analyzed.
+        with wave.open(str(wav), "rb") as converted:
+            duration = round(converted.getnframes() / converted.getframerate())
 
-    filler_word_count = count_filler_words(transcript)
-    annotated_transcript = timing_analysis.get("annotated_transcript", transcript)
+        try:
+            transcript, timing = await asyncio.to_thread(
+                _get_transcriber().transcribe_with_timing, str(wav)
+            )
+        except DeepgramError as exc:
+            raise HTTPException(status_code=502, detail="Transcription is unavailable.") from exc
 
-    try:
-        await session_manager.finalize_and_persist(
-            db,
-            session_id,
-            transcript_text=annotated_transcript,
-            wav_path=wav_path,
-            duration_seconds=duration_seconds,
-            filler_word_count=filler_word_count,
-        )
-    except StorageError as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
-
-    audio_url: str | None = None
-    stmt = select(Session).where(Session.session_id == session_id)
-    result = await db.execute(stmt)
-    row = result.scalar_one_or_none()
-    if row and row.audio_path:
-        audio_url = f"/session/{session_id}/audio"
+    filler_count = count_filler_words(transcript)
+    db.add(Session(
+        session_id=str(uuid.uuid4()),
+        user_id=current_user.id,
+        duration_seconds=duration,
+        filler_word_count=filler_count,
+    ))
+    await db.commit()
 
     return {
-        "final": annotated_transcript,
-        "filler_word_count": filler_word_count,
-        "audio_url": audio_url,
+        "final": timing.get("annotated_transcript", transcript),
+        "filler_word_count": filler_count,
     }
 
 
@@ -261,7 +229,7 @@ async def get_session_audio(
 
     try:
         if storage.is_configured():
-            audio_bytes = await storage.download_audio(session.audio_path)
+            audio_bytes = await storage.download(session.audio_path)
         else:
             file_path = Path(session.audio_path)
             if not file_path.exists():
@@ -298,7 +266,7 @@ async def delete_session_recording(
     if session.audio_path:
         if storage.is_configured():
             try:
-                await storage.delete_audio(session.audio_path)
+                await storage.delete(session.audio_path)
             except StorageError as exc:
                 raise HTTPException(status_code=502, detail=str(exc))
         else:

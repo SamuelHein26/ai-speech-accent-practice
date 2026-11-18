@@ -6,8 +6,8 @@ ComfTalk is a web app for practising spoken English. It combines free-form speak
 
 - **Monologue practice:** Record a speaking session with live transcription, pause markers, filler-word counts, AI-generated topic prompts, and written coaching feedback.
 - **Accent practice:** Read a prompt aloud and review word-level feedback for American or British English. Feedback currently uses speech recognition results and pronunciation heuristics.
-- **Accounts and history:** Register, sign in, manage basic profile details, and review or delete saved practice sessions.
-- **Audio playback:** Replay saved monologue and accent-practice recordings.
+- **Accounts and history:** Sign in to practise. Completed sessions are tracked by account.
+- **Audio playback and downloads:** Replay or download new recordings on the practice page.
 
 ## Technology
 
@@ -16,7 +16,7 @@ ComfTalk is a web app for practising spoken English. It combines free-form speak
 - **Database:** PostgreSQL
 - **Speech recognition:** Deepgram Nova-2 for streaming and recorded audio
 - **AI coaching:** Gemini by default; Ollama and OpenAI provider implementations are also available
-- **Audio storage:** Local disk or an S3-compatible service such as Supabase Storage
+- **Audio storage:** Temporary processing for new recordings. Local disk or S3-compatible storage can still serve existing archived recordings.
 
 ## Requirements
 
@@ -27,7 +27,7 @@ ComfTalk is a web app for practising spoken English. It combines free-form speak
 - Gemini API key
 - FFmpeg and FFprobe on the backend machine
 
-Optional: Ollama for local model use, or S3-compatible storage for persistent recordings in hosted environments.
+Optional: Ollama for local model use, or S3-compatible storage for existing archived recordings.
 
 ## Local setup
 
@@ -99,7 +99,7 @@ CORS_ORIGINS=https://your-domain.example
 FRONTEND_URL=https://your-frontend.example
 ```
 
-Without storage credentials, recordings use local disk. Hosted filesystems may be temporary, so configure persistent object storage when recordings need to survive restarts or deployments.
+Storage credentials are only needed to access recordings previously archived in object storage.
 
 The frontend's `NEXT_PUBLIC_API_BASE_URL` should point to the backend, for example:
 
@@ -138,4 +138,4 @@ npm run lint
 
 ## Deployment
 
-The frontend and backend can be deployed separately. Configure the frontend's `NEXT_PUBLIC_API_BASE_URL` with the deployed API address, and set backend environment variables on the backend host. Configure persistent object storage for recordings when the backend host does not retain local files between deployments.
+The frontend and backend can be deployed separately. Configure the frontend's `NEXT_PUBLIC_API_BASE_URL` with the deployed API address, and set backend environment variables on the backend host. Run Alembic before deploying the updated backend. New recordings can be downloaded from the browser after practice.

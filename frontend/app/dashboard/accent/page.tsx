@@ -376,7 +376,7 @@ export default function AccentDashboardPage() {
                   return (
                     <tr
                       key={attempt.attempt_id}
-                      className="hover:bg-ui-surface/70/50 transition"
+                      className="hover:bg-brand-sage/5 transition"
                     >
                       <td className="px-4 py-3 align-top text-sm text-ui-text">
                         {new Date(attempt.created_at).toLocaleString()}
@@ -402,7 +402,7 @@ export default function AccentDashboardPage() {
                         {attempt.audio_available ? (
                           <>
                             <button
-                              className="px-3.5 py-1.5 rounded-lg bg-brand-secondary text-ui-on-brand font-medium hover:bg-brand-secondary/90 transition cursor-pointer text-sm disabled:opacity-60"
+                              className="px-3.5 py-1.5 rounded-lg bg-brand-secondary text-ui-on-brand font-medium hover:bg-brand-sage hover:text-brand-on-sage transition cursor-pointer text-sm disabled:opacity-60"
                               onClick={() =>
                                 handleLoadAudio(attempt.attempt_id)
                               }
@@ -441,7 +441,7 @@ export default function AccentDashboardPage() {
                             handleDeleteAttempt(attempt.attempt_id)
                           }
                           disabled={deletingId === attempt.attempt_id}
-                          className="px-3 py-1.5 rounded-lg border border-ui-border text-ui-accent font-medium hover:bg-brand-primary/10 dark:hover:bg-brand-secondary/20 transition cursor-pointer text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="px-3 py-1.5 rounded-lg border border-ui-border text-ui-accent font-medium hover:bg-brand-sage/10 dark:hover:bg-brand-sage/20 transition cursor-pointer text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           {deletingId === attempt.attempt_id
                             ? "Removing..."
@@ -465,7 +465,7 @@ export default function AccentDashboardPage() {
                 className={`px-3 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer ${
                   page === currentPage
                     ? "bg-brand-secondary text-ui-on-brand shadow"
-                    : "bg-ui-surface-muted text-ui-text hover:bg-ui-surface-muted"
+                    : "bg-ui-surface-muted text-ui-text hover:bg-brand-sage/10"
                 }`}
               >
                 {page}

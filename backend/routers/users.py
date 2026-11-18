@@ -26,6 +26,17 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.post("/register", response_model=Token)
 async def register_user(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
+    if len(user_data.email) > 150:
+        raise HTTPException(status_code=422, detail="Email address must be 150 characters or fewer.")
+
+    password = user_data.password
+    if len(password) < 12 or not password.strip():
+        raise HTTPException(status_code=422, detail="Use at least 12 characters for your password. It cannot be all whitespace.")
+    if len(password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=422, detail="Password is too long. Use up to 72 bytes. Some characters take more than one byte.")
+    if "\x00" in password:
+        raise HTTPException(status_code=422, detail="Password contains an unsupported character.")
+
     username_result = await db.execute(
         select(User).where(User.username == user_data.username)
     )

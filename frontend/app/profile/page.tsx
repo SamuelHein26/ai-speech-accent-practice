@@ -225,7 +225,7 @@ export default function ProfilePage() {
               <div className="text-center space-y-4">
                 <p className="text-ui-accent text-sm">{error}</p>
                 <button
-                  className="px-5 py-2.5 rounded-xl bg-brand-secondary text-ui-on-brand font-medium hover:bg-brand-secondary/90 transition cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-brand-secondary text-ui-on-brand font-medium hover:bg-brand-sage hover:text-brand-on-sage transition cursor-pointer"
                   onClick={() => router.push(loginHref("/profile"))}
                 >
                   Go to login
@@ -287,7 +287,7 @@ export default function ProfilePage() {
                     <button
                       type="submit"
                       disabled={updating}
-                      className="px-5 py-2.5 rounded-xl bg-brand-secondary text-ui-on-brand font-semibold hover:bg-brand-secondary/90 transition cursor-pointer disabled:opacity-60"
+                      className="px-5 py-2.5 rounded-xl bg-brand-secondary text-ui-on-brand font-semibold hover:bg-brand-sage hover:text-brand-on-sage transition cursor-pointer disabled:opacity-60"
                     >
                       {updating ? "Saving..." : "Save changes"}
                     </button>
@@ -301,7 +301,7 @@ export default function ProfilePage() {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-semibold text-ui-text">Recent recordings</h2>
               <button
-                className="text-sm text-ui-accent hover:underline cursor-pointer"
+                className="text-sm text-ui-accent hover:text-ui-sage hover:underline cursor-pointer"
                 onClick={() => router.push("/dashboard")}
               >
                 View dashboard
@@ -336,7 +336,7 @@ export default function ProfilePage() {
                       <button
                         onClick={() => handleDeleteRecording(session.session_id)}
                         disabled={deletingId === session.session_id}
-                        className="self-start sm:self-end px-3 py-1.5 rounded-lg border border-ui-border text-xs font-semibold text-ui-accent hover:bg-brand-primary/10 dark:hover:bg-brand-secondary/20 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="self-start sm:self-end px-3 py-1.5 rounded-lg border border-ui-border text-xs font-semibold text-ui-accent hover:bg-brand-sage/10 dark:hover:bg-brand-sage/20 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {deletingId === session.session_id ? "Removing..." : "Delete"}
                       </button>

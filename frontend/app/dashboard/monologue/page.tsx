@@ -318,7 +318,7 @@ export default function MonologueDashboardPage() {
                   const audioUrl = audioEntry?.url;
                   const audioType = audioEntry?.mimeType || "audio/wav";
                   return (
-                    <tr key={session.session_id} className="hover:bg-ui-surface/70/50 transition">
+                    <tr key={session.session_id} className="hover:bg-brand-sage/5 transition">
                       <td className="px-4 py-3 align-top text-sm text-ui-text">
                         {new Date(session.created_at).toLocaleString()}
                       </td>
@@ -337,7 +337,7 @@ export default function MonologueDashboardPage() {
                         {session.audio_available ? (
                           <>
                             <button
-                              className="px-3.5 py-1.5 rounded-lg bg-brand-secondary text-ui-on-brand font-medium hover:bg-brand-secondary/90 transition cursor-pointer text-sm disabled:opacity-60"
+                              className="px-3.5 py-1.5 rounded-lg bg-brand-secondary text-ui-on-brand font-medium hover:bg-brand-sage hover:text-brand-on-sage transition cursor-pointer text-sm disabled:opacity-60"
                               onClick={() => handleLoadAudio(session.session_id)}
                               disabled={loadingAudioId === session.session_id}
                             >
@@ -362,7 +362,7 @@ export default function MonologueDashboardPage() {
                         <button
                           onClick={() => handleDeleteRecording(session.session_id)}
                           disabled={deletingId === session.session_id}
-                          className="px-3 py-1.5 rounded-lg border border-ui-border text-ui-accent font-medium hover:bg-brand-primary/10 dark:hover:bg-brand-secondary/20 transition cursor-pointer text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="px-3 py-1.5 rounded-lg border border-ui-border text-ui-accent font-medium hover:bg-brand-sage/10 dark:hover:bg-brand-sage/20 transition cursor-pointer text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           {deletingId === session.session_id ? "Removing..." : "Delete"}
                         </button>
@@ -384,7 +384,7 @@ export default function MonologueDashboardPage() {
                 className={`px-3 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer ${
                   page === currentPage
                     ? "bg-brand-secondary text-ui-on-brand shadow"
-                    : "bg-ui-surface-muted text-ui-text hover:bg-ui-surface-muted"
+                    : "bg-ui-surface-muted text-ui-text hover:bg-brand-sage/10"
                 }`}
               >
                 {page}
