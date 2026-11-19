@@ -1,0 +1,75 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: comftalk
+      POSTGRES_USER: comftalk
+      POSTGRES_PASSWORD: comftalk-local
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "comftalk", "-d", "comftalk"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  backend:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://comftalk:comftalk-local@db:5432/comftalk
+      DATABASE_SSL: "false"
+      CORS_ORIGINS: "http://localhost:${COMFTALK_FRONTEND_PORT:-3001},http://127.0.0.1:${COMFTALK_FRONTEND_PORT:-3001}"
+      SECRET_KEY: "${SECRET_KEY:-comftalk-docker-local-development-only}"
+      DEEPGRAM_API_KEY: "${DEEPGRAM_API_KEY:-}"
+      LLM_BACKEND: "${LLM_BACKEND:-gemini}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${COMFTALK_BACKEND_PORT:-8001}:8000"
+    command: sh -c "alembic upgrade head && exec uvicorn main:app --host 0.0.0.0 --reload"
+    develop:
+      watch:
+        - action: sync
+          path: ./backend
+          target: /app
+          ignore:
+            - venv/
+            - __pycache__/
+            - requirements.txt
+            - recordings/
+            - live_sessions/
+            - accent_attempts/
+        - action: rebuild
+          path: ./backend/requirements.txt
+
+  frontend:
+    build: ./frontend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: "http://127.0.0.1:${COMFTALK_BACKEND_PORT:-8001}"
+    ports:
+      - "127.0.0.1:${COMFTALK_FRONTEND_PORT:-3001}:3000"
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend
+          target: /app
+          ignore:
+            - node_modules/
+            - .next/
+            - package.json
+            - package-lock.json
+        - action: rebuild
+          path: ./frontend/package.json
+        - action: rebuild
+          path: ./frontend/package-lock.json
+
+volumes:
+  postgres-data:

@@ -5,7 +5,7 @@ export default function AboutPage() {
     <main className="page-container">
       <article className="mx-auto max-w-3xl space-y-12">
         <header className="space-y-4">
-          <h1 className="page-title text-ui-muted">About ComfTalk</h1>
+          <h1 className="page-title">About ComfTalk</h1>
           <p className="max-w-2xl text-lg leading-relaxed text-ui-muted">
             ComfTalk is a place to practise spoken English at your own pace, build confidence, and get useful feedback from each attempt.
           </p>

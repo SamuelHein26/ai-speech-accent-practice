@@ -31,6 +31,35 @@ Optional: Ollama for local model use, or S3-compatible storage for existing arch
 
 ## Local setup
 
+### Docker Compose
+
+Install Docker with Compose v2.22 or later. From the repository root, add your
+Deepgram and Gemini keys to `.env`, then run:
+
+```bash
+docker compose up --build --watch
+```
+
+Open the frontend at http://localhost:3001 and the API docs at
+http://localhost:8001/docs. Set `COMFTALK_FRONTEND_PORT` or
+`COMFTALK_BACKEND_PORT` in `.env` to change those ports. Compose starts PostgreSQL, runs the Alembic
+migrations, and syncs local code edits while watch mode is running.
+Stop the stack with Ctrl+C or `docker compose down`. The named volume
+preserves database data between runs.
+
+The Docker database is a separate local database. Compose uses its own
+`DATABASE_URL`, even if the root `.env` points at Supabase or your existing
+local database. Connect to it with:
+
+```bash
+docker compose exec db psql -U comftalk -d comftalk
+```
+
+Host tools can also connect at `127.0.0.1:5433` using the local development
+password `comftalk-local`.
+
+### Manual setup
+
 Create a `.env` file in the repository root. Add the database connection and service credentials described under [Configuration](#configuration).
 
 ### Backend
