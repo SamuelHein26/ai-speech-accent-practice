@@ -65,3 +65,9 @@ async def require_current_user(user: User | None = Depends(get_current_user)) ->
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
+
+async def require_admin(user: User = Depends(require_current_user)) -> User:
+    if user.role not in ("admin", "primary_admin"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
+    return user

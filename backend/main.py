@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from services.auth_service import require_current_user
 from services.llm_service import _build_service as _build_llm_service
-from routers import users, sessions, auth, streaming, accent
+from routers import users, sessions, auth, streaming, accent, admin
 from schemas import (
     FeedbackRequest,
     FeedbackResponse,
@@ -86,6 +86,7 @@ app.include_router(sessions.router)
 app.include_router(auth.router)
 app.include_router(streaming.router)
 app.include_router(accent.router)
+app.include_router(admin.router)
 
 # === Dependency Setup ===
 openai_service = _build_llm_service()

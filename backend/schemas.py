@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr
+from models import UserRole
 
 class UserCreate(BaseModel):
     username: str
@@ -19,12 +20,21 @@ class UserResponse(BaseModel):
     username: str
     email: EmailStr
     created_at: datetime
+    role: UserRole
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class UserProfileResponse(UserResponse):
     total_sessions: int
+
+
+class AdminOverview(BaseModel):
+    role: Literal["admin", "primary_admin"]
+    users: int
+    admins: int
+    monologue_sessions: int
+    accent_attempts: int
 
 
 class UserUpdate(BaseModel):

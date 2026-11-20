@@ -11,18 +11,28 @@ from sqlalchemy import (
     Text,
     text,
     Numeric,
+    CheckConstraint,
+    Index,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 from core.db_base import Base
+from typing import Literal
+
+UserRole = Literal["user", "admin", "primary_admin"]
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("role IN ('user', 'admin', 'primary_admin')", name="ck_users_role"),
+        Index("uq_users_primary_admin", "role", unique=True, postgresql_where=text("role = 'primary_admin'")),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(100), unique=True, nullable=False)
     email = Column(String(150), unique=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
+    role = Column(String(20), nullable=False, server_default="user")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     sessions = relationship("Session", back_populates="user")

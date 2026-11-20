@@ -98,6 +98,7 @@ async def get_profile(
         username=current_user.username,
         email=current_user.email,
         created_at=current_user.created_at,
+        role=current_user.role,
         total_sessions=total_sessions,
     )
 

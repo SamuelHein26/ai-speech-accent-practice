@@ -87,6 +87,31 @@ npm run dev
 
 The website runs at `http://localhost:3000`. To use a backend at a different address, set `NEXT_PUBLIC_API_BASE_URL` in the frontend environment.
 
+### Admin accounts
+
+Run `alembic upgrade head` on the intended database before deploying the
+role-aware backend. Existing accounts and new registrations start as `user`.
+The database permits one `primary_admin` and supports additional `admin` accounts.
+
+To set up the primary admin, first register the account in the intended
+environment. Connect to that database with a trusted operator account and run
+this SQL in `psql`, replacing the example address with the registered email:
+
+```sql
+\conninfo
+\set admin_email 'owner@example.com'
+UPDATE public.users
+SET role = 'primary_admin'
+WHERE email = :'admin_email' AND role IN ('user', 'admin')
+RETURNING id, email, role;
+```
+
+A successful first assignment returns one row. A different primary admin
+already present causes the database to reject the update. For an additional
+admin, assign `admin` to the intended account from the database. Both admin
+roles can open **Dashboard → Admin** to see account and practice totals.
+Role changes are managed by database operators.
+
 ## Configuration
 
 The backend loads `.env` from the repository root.
